@@ -1,0 +1,31 @@
+# --- 依赖与构建产物 ---
+node_modules/
+dist/
+dist-ssr/
+*.local
+target/
+build/
+out/
+
+# --- IDE / 编辑器 ---
+.idea/
+.vscode/
+*.iml
+*.swp
+
+# --- 日志 ---
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# --- 系统文件 ---
+.DS_Store
+Thumbs.db
+
+# --- 环境配置（勿提交密钥） ---
+.env
+.env.*
+!.env.example
+application-local.yml
