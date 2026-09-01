@@ -2,6 +2,7 @@ package com.bookmate.controller;
 
 import com.bookmate.common.Result;
 import com.bookmate.service.BookingService;
+import com.bookmate.service.TeacherService;
 import com.bookmate.util.JwtUtil;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.web.bind.annotation.*;
@@ -13,10 +14,12 @@ import java.util.Map;
 @RequestMapping("/api")
 public class BookingController {
     private final BookingService bookingService;
+    private final TeacherService teacherService;
     private final JwtUtil jwtUtil;
 
-    public BookingController(BookingService b, JwtUtil j) {
+    public BookingController(BookingService b, TeacherService t, JwtUtil j) {
         this.bookingService = b;
+        this.teacherService = t;
         this.jwtUtil = j;
     }
 
@@ -62,7 +65,8 @@ public class BookingController {
     public Result<?> leave(@RequestHeader("Authorization") String auth, @RequestBody Map<String, Object> body) {
         long student = currentUserId(auth);
         long bookingId = Long.parseLong(String.valueOf(body.get("bookingId")));
-        boolean ok = bookingService.leave(bookingId, student);
-        return ok ? Result.ok(true) : Result.fail(400, "请假失败（仅已确认课时可请假）");
+        String reason = String.valueOf(body.getOrDefault("reason", ""));
+        boolean ok = teacherService.submitLeave(student, bookingId, reason);
+        return ok ? Result.ok(true) : Result.fail(400, "请假提交失败（仅已确认课时可请假，且不可重复提交）");
     }
 }

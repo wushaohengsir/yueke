@@ -12,9 +12,10 @@ const done = ref(false)
 onMounted(async () => { bookings.value = await api.listBookings() })
 const confirmed = computed(() => bookings.value.filter((b) => b.status === 1))
 
+const p2 = (n: number) => String(n).padStart(2, '0')
 function fmt(d: string) {
   const dt = new Date(d)
-  return `${dt.getMonth() + 1}/${dt.getDate()} ${dt.getHours()}:00`
+  return `${dt.getMonth() + 1}/${dt.getDate()} ${p2(dt.getHours())}:${p2(dt.getMinutes())}`
 }
 async function submit() {
   if (!target.value || !reason.value) return
@@ -29,10 +30,10 @@ async function submit() {
 <template>
   <div class="page">
     <h2 class="page-title">请假</h2>
-    <p class="muted">仅可对「已确认」课时请假，批准后时段自动释放、课时返还。</p>
+    <p class="muted">仅可对「已确认」课时请假，提交后待老师审批；批准后时段释放、课时返还。</p>
 
-    <div class="card" v-if="done" style="border-top:6px solid var(--green)">
-      <b>✓ 请假已提交并获批（演示），时段已释放</b>
+    <div class="card" v-if="done" style="border-top:6px solid var(--sun)">
+      <b>✓ 请假已提交，待老师审批</b>
     </div>
 
     <div v-for="b in confirmed" :key="b.id" class="card">

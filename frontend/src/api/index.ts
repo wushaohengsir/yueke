@@ -65,9 +65,9 @@ export const api = {
     })
   },
 
-  async createLeave(bookingId: number, _reason: string): Promise<{ ok: boolean }> {
+  async createLeave(bookingId: number, reason: string): Promise<{ ok: boolean }> {
     try {
-      await call(http.post('/api/leave', { bookingId }))
+      await call(http.post('/api/leave', { bookingId, reason }))
       return { ok: true }
     } catch {
       return { ok: false }
@@ -75,4 +75,27 @@ export const api = {
   },
 
   async listLeaves(): Promise<any[]> { return [] },
+
+  // ---- 老师端 ----
+  async getTeacherBookings(): Promise<Booking[]> {
+    return call<Booking[]>(http.get('/api/teacher/bookings'))
+  },
+  async getTeacherLeaves(): Promise<any[]> {
+    return call<any[]>(http.get('/api/teacher/leaves'))
+  },
+  async handleLeave(id: number, approve: boolean): Promise<{ ok: boolean }> {
+    try { await call(http.post(`/api/teacher/leaves/${id}/handle`, { approve })); return { ok: true } }
+    catch { return { ok: false } }
+  },
+  async getTemplates(): Promise<any[]> {
+    return call<any[]>(http.get('/api/teacher/templates'))
+  },
+  async addTemplate(t: { weekday: number; start: string; end: string; subjectId?: number }): Promise<{ ok: boolean }> {
+    try { await call(http.post('/api/teacher/templates', t)); return { ok: true } }
+    catch { return { ok: false } }
+  },
+  async toggleTemplate(id: number): Promise<{ ok: boolean }> {
+    try { await call(http.post(`/api/teacher/templates/${id}/toggle`, {})); return { ok: true } }
+    catch { return { ok: false } }
+  },
 }
