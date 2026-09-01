@@ -8,7 +8,7 @@ import type { Booking } from '../types'
 const router = useRouter()
 const auth = useAuthStore()
 const tab = ref<'schedule' | 'leave' | 'template'>('schedule')
-const bookings = ref<Booking[]>([])
+const bookings = ref<any[]>([])
 const leaves = ref<any[]>([])
 const templates = ref<any[]>([])
 
@@ -37,6 +37,10 @@ async function handle(id: number, approve: boolean) {
 }
 async function toggle(id: number) {
   await api.toggleTemplate(id)
+  await load()
+}
+async function complete(id: number) {
+  await api.completeBooking(id)
   await load()
 }
 
@@ -69,6 +73,8 @@ function logout() { auth.logout(); router.replace('/login') }
           <b>{{ range(b.startAt, b.endAt) }}</b>
           <span class="st" :class="stClass[b.status]">{{ stText[b.status] }}</span>
         </div>
+        <p class="muted" style="margin:6px 0">{{ b.studentName }} · {{ b.subjectName }}</p>
+        <button class="btn small" v-if="b.status===1" @click="complete(b.id)">登记完成</button>
       </div>
       <p class="muted" v-if="!bookings.length">暂无课表</p>
     </div>

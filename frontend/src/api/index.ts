@@ -77,8 +77,12 @@ export const api = {
   async listLeaves(): Promise<any[]> { return [] },
 
   // ---- 老师端 ----
-  async getTeacherBookings(): Promise<Booking[]> {
-    return call<Booking[]>(http.get('/api/teacher/bookings'))
+  async getTeacherBookings(): Promise<any[]> {
+    return call<any[]>(http.get('/api/teacher/bookings'))
+  },
+  async completeBooking(id: number): Promise<{ ok: boolean }> {
+    try { await call(http.post(`/api/teacher/bookings/${id}/complete`, {})); return { ok: true } }
+    catch { return { ok: false } }
   },
   async getTeacherLeaves(): Promise<any[]> {
     return call<any[]>(http.get('/api/teacher/leaves'))

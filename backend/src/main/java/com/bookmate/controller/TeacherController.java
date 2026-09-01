@@ -29,6 +29,13 @@ public class TeacherController {
         return Result.ok(teacherService.listTeacherBookings(currentUserId(auth)));
     }
 
+    // 登记课时（标记完成）
+    @PostMapping("/bookings/{id}/complete")
+    public Result<?> complete(@RequestHeader("Authorization") String auth, @PathVariable long id) {
+        boolean ok = teacherService.completeBooking(currentUserId(auth), id);
+        return ok ? Result.ok(true) : Result.fail(400, "登记失败（仅已确认课时可登记）");
+    }
+
     // 请假列表
     @GetMapping("/leaves")
     public Result<?> leaves(@RequestHeader("Authorization") String auth) {

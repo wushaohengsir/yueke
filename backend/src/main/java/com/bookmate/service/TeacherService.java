@@ -41,10 +41,35 @@ public class TeacherService {
         return true;
     }
 
-    // ---- 老师：周课表 ----
-    public List<Booking> listTeacherBookings(long teacherId) {
-        return bookingMapper.selectList(new LambdaQueryWrapper<Booking>()
+    // ---- 老师：周课表（带学员/科目名） ----
+    public List<Map<String, Object>> listTeacherBookings(long teacherId) {
+        List<Booking> bs = bookingMapper.selectList(new LambdaQueryWrapper<Booking>()
                 .eq(Booking::getTeacherId, teacherId).orderByAsc(Booking::getStartAt));
+        Map<Long, Subject> subjById = subjectMapper.selectList(null).stream()
+                .collect(Collectors.toMap(Subject::getId, s -> s));
+        List<Map<String, Object>> out = new ArrayList<>();
+        for (Booking b : bs) {
+            User stu = userMapper.selectById(b.getStudentId());
+            Map<String, Object> m = new LinkedHashMap<>();
+            m.put("id", b.getId());
+            m.put("startAt", b.getStartAt());
+            m.put("endAt", b.getEndAt());
+            m.put("status", b.getStatus());
+            m.put("studentName", stu != null ? stu.getName() : "");
+            m.put("subjectName", b.getSubjectId() != null && subjById.get(b.getSubjectId()) != null
+                    ? subjById.get(b.getSubjectId()).getName() : "");
+            out.add(m);
+        }
+        return out;
+    }
+
+    // ---- 老师：登记课时（标记完成） ----
+    public boolean completeBooking(long teacherId, long bookingId) {
+        Booking b = bookingMapper.selectById(bookingId);
+        if (b == null || !b.getTeacherId().equals(teacherId) || b.getStatus() != 1) return false;
+        b.setStatus(2); // 已完成
+        bookingMapper.updateById(b);
+        return true;
     }
 
     // ---- 老师：请假列表 ----
