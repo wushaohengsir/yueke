@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
-import { api } from '../api/mock'
+import { api } from '../api'
 import { useAuthStore } from '../stores/auth'
 import type { Booking } from '../types'
 import Tabbar from '../components/Tabbar.vue'

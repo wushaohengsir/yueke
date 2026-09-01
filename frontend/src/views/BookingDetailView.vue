@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ref, onMounted, computed } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { api } from '../api/mock'
+import { api } from '../api'
 import { useAuthStore } from '../stores/auth'
 import type { Teacher, Timeslot } from '../types'
 
@@ -44,7 +44,7 @@ function hh(d: string) {
 
 async function confirm() {
   if (!selected.value) return
-  const r = await api.createBooking(tid, selected.value.id, auth.user!)
+  const r = await api.createBooking(tid, selected.value, auth.user!)
   if (r.ok) { auth.consumeCredit() }
   result.value = { ok: r.ok, msg: r.msg }
 }

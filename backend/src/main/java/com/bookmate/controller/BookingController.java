@@ -30,6 +30,11 @@ public class BookingController {
         return Result.ok(bookingService.listTeachers());
     }
 
+    @GetMapping("/teachers/{id}/slots")
+    public Result<?> slots(@PathVariable long id) {
+        return Result.ok(bookingService.generateSlots(id));
+    }
+
     @GetMapping("/bookings")
     public Result<?> bookings(@RequestHeader("Authorization") String auth) {
         return Result.ok(bookingService.listByStudent(currentUserId(auth)));
@@ -46,5 +51,13 @@ public class BookingController {
         } catch (IllegalStateException e) {
             return Result.fail(409, e.getMessage());
         }
+    }
+
+    @PostMapping("/leave")
+    public Result<?> leave(@RequestHeader("Authorization") String auth, @RequestBody Map<String, Object> body) {
+        long student = currentUserId(auth);
+        long bookingId = Long.parseLong(String.valueOf(body.get("bookingId")));
+        boolean ok = bookingService.leave(bookingId, student);
+        return ok ? Result.ok(true) : Result.fail(400, "请假失败（仅已确认课时可请假）");
     }
 }

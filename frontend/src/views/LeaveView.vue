@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref, onMounted, computed } from 'vue'
-import { api } from '../api/mock'
+import { api } from '../api'
 import type { Booking } from '../types'
 import Tabbar from '../components/Tabbar.vue'
 
