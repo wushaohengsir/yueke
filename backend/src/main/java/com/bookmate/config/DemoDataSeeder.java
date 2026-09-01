@@ -18,14 +18,15 @@ public class DemoDataSeeder implements CommandLineRunner {
     private final SubjectMapper subjectMapper;
     private final TeacherSubjectMapper teacherSubjectMapper;
     private final TimeslotTemplateMapper templateMapper;
+    private final StudentCreditMapper creditMapper;
     private final PasswordEncoder encoder;
 
     public DemoDataSeeder(UserMapper u, TeacherProfileMapper t, StudentProfileMapper s,
                           SubjectMapper sj, TeacherSubjectMapper ts, TimeslotTemplateMapper tm,
-                          PasswordEncoder e) {
+                          StudentCreditMapper sc, PasswordEncoder e) {
         this.userMapper = u; this.teacherMapper = t; this.studentMapper = s;
         this.subjectMapper = sj; this.teacherSubjectMapper = ts; this.templateMapper = tm;
-        this.encoder = e;
+        this.creditMapper = sc; this.encoder = e;
     }
 
     @Override
@@ -53,10 +54,22 @@ public class DemoDataSeeder implements CommandLineRunner {
         stu.setPasswordHash(encoder.encode("123456"));
         userMapper.insert(stu);
         StudentProfile sp = new StudentProfile();
-        sp.setUserId(stu.getId()); sp.setCreditsTotal(20); sp.setCreditsUsed(0);
+        sp.setUserId(stu.getId()); sp.setCreditsTotal(0); sp.setCreditsUsed(0);
         studentMapper.insert(sp);
 
-        System.out.println("[DemoDataSeeder] seeded 3 teachers + 1 student");
+        // 分课程课时（不通用）
+        credit(stu.getId(), s1, 10); // 钢琴 10 节
+        credit(stu.getId(), s2, 5);  // 羽毛球 5 节
+        credit(stu.getId(), s3, 3);  // 编程 3 节
+
+        System.out.println("[DemoDataSeeder] seeded 3 teachers + 1 student (per-subject credits)");
+    }
+
+    private void credit(long studentId, Subject s, int total) {
+        StudentCredit sc = new StudentCredit();
+        sc.setStudentId(studentId); sc.setSubjectId(s.getId());
+        sc.setCreditsTotal(total); sc.setCreditsUsed(0);
+        creditMapper.insert(sc);
     }
 
     private Subject subj(String name, String cat) {

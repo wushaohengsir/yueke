@@ -1,6 +1,6 @@
 // 真实后端 API（Spring Boot :8080），Axios + JWT 拦截器
 import axios from 'axios'
-import type { Booking, Teacher, Timeslot, User } from '../types'
+import type { Booking, Credit, Teacher, Timeslot, User } from '../types'
 
 const http = axios.create({ baseURL: 'http://localhost:8080', timeout: 10000 })
 
@@ -38,6 +38,10 @@ export const api = {
 
   async listSlots(teacherId: number): Promise<Timeslot[]> {
     return call<Timeslot[]>(http.get(`/api/teachers/${teacherId}/slots`))
+  },
+
+  async getCredits(): Promise<Credit[]> {
+    return call<Credit[]>(http.get('/api/credits'))
   },
 
   async createBooking(teacherId: number, slot: Timeslot, _student: User): Promise<{ ok: boolean; msg?: string; booking?: Booking }> {

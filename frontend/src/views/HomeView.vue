@@ -1,10 +1,17 @@
 <script setup lang="ts">
+import { ref, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAuthStore } from '../stores/auth'
+import { api } from '../api'
+import type { Credit } from '../types'
 import Tabbar from '../components/Tabbar.vue'
 
 const router = useRouter()
 const auth = useAuthStore()
+const credits = ref<Credit[]>([])
+onMounted(async () => {
+  if (auth.isStudent) credits.value = await api.getCredits()
+})
 
 const items = [
   { label: '约课', to: '/book', core: true },
@@ -29,9 +36,13 @@ function go(to: string) {
       <p>找好老师，约好每一课</p>
     </div>
 
-    <div class="card row" v-if="auth.isStudent">
-      <span class="muted">剩余课时</span>
-      <b style="font-size:20px;color:var(--sun-deep)">{{ auth.user?.credits }} 节</b>
+    <!-- 分课程课时（不通用） -->
+    <div class="card" v-if="auth.isStudent">
+      <div class="row" v-for="c in credits" :key="c.subjectId" style="padding:4px 0">
+        <span class="muted">{{ c.subjectName }}（{{ c.category }}）</span>
+        <b :style="c.remaining > 0 ? 'color:var(--sun-deep)' : 'color:var(--coral)'">剩余 {{ c.remaining }} 节</b>
+      </div>
+      <p class="muted" v-if="!credits.length" style="margin:0">暂无课时，请先购买课时包</p>
     </div>
 
     <div class="grid">
@@ -40,7 +51,7 @@ function go(to: string) {
       </div>
     </div>
 
-    <p class="muted mt">v0.1 · 概念验证版</p>
+    <p class="muted mt">v0.5 · 分课程课时版</p>
     <Tabbar />
   </div>
 </template>

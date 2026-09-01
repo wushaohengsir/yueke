@@ -35,6 +35,11 @@ public class BookingController {
         return Result.ok(bookingService.generateSlots(id));
     }
 
+    @GetMapping("/credits")
+    public Result<?> credits(@RequestHeader("Authorization") String auth) {
+        return Result.ok(bookingService.getCredits(currentUserId(auth)));
+    }
+
     @GetMapping("/bookings")
     public Result<?> bookings(@RequestHeader("Authorization") String auth) {
         return Result.ok(bookingService.listByStudent(currentUserId(auth)));

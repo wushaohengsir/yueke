@@ -13,6 +13,15 @@ export interface Subject {
   name: string
 }
 
+export interface Credit {
+  subjectId: number
+  subjectName: string
+  category: string
+  total: number
+  used: number
+  remaining: number
+}
+
 export interface Teacher {
   id: number
   name: string

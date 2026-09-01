@@ -36,12 +36,12 @@ CREATE TABLE `teacher_profile` (
 CREATE TABLE `student_profile` (
   `id`              BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
   `user_id`         BIGINT UNSIGNED NOT NULL COMMENT '学员用户ID',
-  `credits_total`   INT NOT NULL DEFAULT 0 COMMENT '累计购买课时',
-  `credits_used`    INT NOT NULL DEFAULT 0 COMMENT '已消耗课时',
+  `credits_total`   INT NOT NULL DEFAULT 0 COMMENT '[废弃]通用课时，已改为分课程课时见 student_credit',
+  `credits_used`    INT NOT NULL DEFAULT 0 COMMENT '[废弃]通用课时，已改为分课程课时见 student_credit',
   PRIMARY KEY (`id`),
   UNIQUE KEY `uk_student_user` (`user_id`),
   CONSTRAINT `fk_sp_user` FOREIGN KEY (`user_id`) REFERENCES `user` (`id`)
-) ENGINE=InnoDB COMMENT='学员档案(1:1)，剩余课时=total-used';
+) ENGINE=InnoDB COMMENT='学员档案(1:1)；课时按课程拆分见 student_credit';
 
 -- ---------- 科目与老师-科目（M:N Junction） ----------
 CREATE TABLE `subject` (
@@ -59,6 +59,19 @@ CREATE TABLE `teacher_subject` (
   CONSTRAINT `fk_ts_teacher` FOREIGN KEY (`teacher_id`) REFERENCES `teacher_profile` (`user_id`),
   CONSTRAINT `fk_ts_subject` FOREIGN KEY (`subject_id`) REFERENCES `subject` (`id`)
 ) ENGINE=InnoDB COMMENT='老师-科目 M:N';
+
+-- ---------- 学员分课程课时（课时不通用，每门课独立） ----------
+CREATE TABLE `student_credit` (
+  `id`            BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+  `student_id`    BIGINT UNSIGNED NOT NULL COMMENT '学员用户ID',
+  `subject_id`    BIGINT UNSIGNED NOT NULL COMMENT '科目ID',
+  `credits_total` INT NOT NULL DEFAULT 0 COMMENT '该课程购买课时',
+  `credits_used`  INT NOT NULL DEFAULT 0 COMMENT '该课程已消耗课时',
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uk_student_subject` (`student_id`,`subject_id`),
+  CONSTRAINT `fk_sc_student` FOREIGN KEY (`student_id`) REFERENCES `student_profile` (`user_id`),
+  CONSTRAINT `fk_sc_subject` FOREIGN KEY (`subject_id`) REFERENCES `subject` (`id`)
+) ENGINE=InnoDB COMMENT='学员分课程课时（不通用）';
 
 -- ---------- 时段模板与屏蔽 ----------
 CREATE TABLE `timeslot_template` (
@@ -126,6 +139,7 @@ CREATE TABLE `leave_request` (
 CREATE TABLE `credit_log` (
   `id`          BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
   `student_id`  BIGINT UNSIGNED NOT NULL,
+  `subject_id`  BIGINT UNSIGNED DEFAULT NULL COMMENT '科目ID（分课程课时）',
   `delta`       INT NOT NULL COMMENT '正=充值/返还 负=消耗',
   `reason`      VARCHAR(50) NOT NULL COMMENT '约课消耗/请假返还/购买充值/补登记',
   `ref_booking` BIGINT UNSIGNED DEFAULT NULL,
