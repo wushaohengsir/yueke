@@ -6,7 +6,7 @@ const router = createRouter({
   routes: [
     { path: '/login', name: 'login', component: () => import('../views/LoginView.vue') },
     { path: '/', name: 'home', component: () => import('../views/HomeView.vue'), meta: { auth: true } },
-    { path: '/book', name: 'book', component: () => import('../views/BookingListView.vue'), meta: { auth: true } },
+    { path: '/book', name: 'book', component: () => import('../views/BookingListView.vue'), meta: { guest: true } },
     { path: '/book/:id', name: 'book-detail', component: () => import('../views/BookingDetailView.vue'), meta: { auth: true } },
     { path: '/leave', name: 'leave', component: () => import('../views/LeaveView.vue'), meta: { auth: true } },
     { path: '/history', name: 'history', component: () => import('../views/HistoryView.vue'), meta: { auth: true } },
@@ -19,8 +19,11 @@ const router = createRouter({
 
 router.beforeEach((to) => {
   const auth = useAuthStore()
-  if (to.meta.auth && !auth.isLoggedIn) return { name: 'login' }
   const role = auth.user?.role
+  // 需要登录的页面：未登录或游客，一律去登录
+  if (to.meta.auth && !auth.isLoggedIn) return { name: 'login' }
+  // 游客仅能访问标记 guest 的页面（师资介绍），其余去登录
+  if (role === 'guest' && !to.meta.guest && to.name !== 'login') return { name: 'login' }
   if (to.meta.teacher && role !== 'teacher') return { name: 'home' }
   if (to.meta.admin && role !== 'admin') return { name: 'home' }
   if (role === 'teacher' && !to.meta.teacher && to.name !== 'login') return { name: 'teacher' }

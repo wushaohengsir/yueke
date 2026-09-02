@@ -44,8 +44,8 @@ async function complete(id: number) {
   await load()
 }
 
-// 添加模板表单
-const f = ref({ weekday: 1, start: '18:00', end: '19:00' })
+// 添加模板表单（无默认值，由老师填写）
+const f = ref({ weekday: 1, start: '', end: '' })
 async function addTpl() {
   await api.addTemplate({ weekday: f.value.weekday, start: f.value.start, end: f.value.end })
   await load()

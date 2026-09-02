@@ -18,8 +18,6 @@ import java.util.stream.Collectors;
 
 @Service
 public class BookingService {
-    private static final int SLOT_MINUTES = 45; // 约课以 45 分钟时间段为单位
-
     private final BookingMapper bookingMapper;
     private final TeacherProfileMapper teacherMapper;
     private final UserMapper userMapper;
@@ -62,7 +60,7 @@ public class BookingService {
         return views;
     }
 
-    // 生成未来 14 天 45 分钟时间段（模板切分 - 已约）
+    // 生成未来 14 天可约时段：每个启用的模板直接作为一个完整时段（起止由老师控制，时长不固定）
     public List<SlotView> generateSlots(long teacherId) {
         List<TimeslotTemplate> templates = templateMapper.selectList(
                 new LambdaQueryWrapper<TimeslotTemplate>()
@@ -81,17 +79,13 @@ public class BookingService {
             int weekday = date.getDayOfWeek().getValue();
             for (TimeslotTemplate t : templates) {
                 if (t.getWeekday() != weekday) continue;
-                LocalTime cursor = t.getStartTime();
-                while (cursor.plusMinutes(SLOT_MINUTES).compareTo(t.getEndTime()) <= 0) {
-                    LocalDateTime s = LocalDateTime.of(date, cursor);
-                    LocalDateTime e = s.plusMinutes(SLOT_MINUTES);
-                    SlotView sv = new SlotView();
-                    sv.setId(teacherId + "-" + s);
-                    sv.setStartAt(s); sv.setEndAt(e);
-                    sv.setStatus(booked.contains(s) ? "booked" : "available");
-                    slots.add(sv);
-                    cursor = cursor.plusMinutes(SLOT_MINUTES);
-                }
+                LocalDateTime s = LocalDateTime.of(date, t.getStartTime());
+                LocalDateTime e = LocalDateTime.of(date, t.getEndTime());
+                SlotView sv = new SlotView();
+                sv.setId(teacherId + "-" + s);
+                sv.setStartAt(s); sv.setEndAt(e);
+                sv.setStatus(booked.contains(s) ? "booked" : "available");
+                slots.add(sv);
             }
         }
         slots.sort(Comparator.comparing(SlotView::getStartAt));

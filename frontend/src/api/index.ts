@@ -1,14 +1,6 @@
 // 真实后端 API（Spring Boot :8080），Axios + JWT 拦截器
-import axios from 'axios'
 import type { Booking, Credit, Teacher, Timeslot, User } from '../types'
-
-const http = axios.create({ baseURL: 'http://localhost:8080', timeout: 10000 })
-
-http.interceptors.request.use((cfg) => {
-  const token = localStorage.getItem('token')
-  if (token) cfg.headers.Authorization = `Bearer ${token}`
-  return cfg
-})
+import { http } from './http'
 
 async function call<T>(p: Promise<any>): Promise<T> {
   const res = await p
@@ -20,11 +12,16 @@ async function call<T>(p: Promise<any>): Promise<T> {
 interface RawTeacher { id: number; name: string; title: string; intro: string; rating: number; subjects: string[] }
 
 export const api = {
-  async login(phone: string, _password: string, role: 'student' | 'teacher' | 'admin'): Promise<User> {
+  async login(phone: string, password: string, role: 'student' | 'teacher' | 'admin',
+              subjectId?: number | null, name?: string): Promise<User> {
     const roleNum = role === 'student' ? 1 : role === 'teacher' ? 2 : 3
-    const data = await call<any>(http.post('/api/auth/login', { phone, password: '123456', role: roleNum }))
+    const data = await call<any>(http.post('/api/auth/login', {
+      phone, password, role: roleNum,
+      subjectId: subjectId ?? undefined,
+      name: name || undefined,
+    }))
     localStorage.setItem('token', data.token)
-    return { id: data.userId, role, name: data.name, phone, credits: 20 }
+    return { id: data.userId, role, name: data.name, phone }
   },
 
   async listTeachers(): Promise<Teacher[]> {
