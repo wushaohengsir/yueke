@@ -7,13 +7,14 @@ const router = useRouter()
 const auth = useAuthStore()
 const phone = ref('')
 const password = ref('')
-const role = ref<'student' | 'teacher'>('student')
+const role = ref<'student' | 'teacher' | 'admin'>('student')
 const err = ref('')
 
 async function submit() {
   if (!phone.value) { err.value = '请输入手机号'; return }
   await auth.login(phone.value, password.value, role.value)
-  router.replace('/')
+  const r = auth.user?.role
+  router.replace(r === 'teacher' ? '/teacher' : r === 'admin' ? '/admin' : '/')
 }
 </script>
 
@@ -29,6 +30,7 @@ async function submit() {
       <div class="row" style="margin-bottom:14px">
         <label><input type="radio" value="student" v-model="role" /> 学员</label>
         <label><input type="radio" value="teacher" v-model="role" /> 老师</label>
+        <label><input type="radio" value="admin" v-model="role" /> 管理员</label>
       </div>
       <p v-if="err" class="muted" style="color:var(--coral)">{{ err }}</p>
       <button class="btn" @click="submit">登录 / 注册</button>

@@ -40,6 +40,8 @@ public class DemoDataSeeder implements CommandLineRunner {
         long t1 = teacher("13800000001", "王老师", "钢琴十级", "中央音乐学院毕业，10 年钢琴教学经验。", 4.9, s1);
         long t2 = teacher("13800000002", "李老师", "羽毛球教练", "前省队队员，擅长青少年启蒙。", 4.8, s2);
         long t3 = teacher("13800000003", "张老师", "编程讲师", "一线工程师，主讲 Python / 前端入门。", 4.7, s3);
+        // 待审核老师（演示管理端审核流）
+        pendingTeacher("13800000004", "赵老师", "声乐教师", "音乐学院声乐专业，待审核演示。", s1);
 
         // 时段模板（weekday 1-7）
         tpl(t1, 2, LocalTime.of(18,0), LocalTime.of(21,0), s1);
@@ -62,7 +64,13 @@ public class DemoDataSeeder implements CommandLineRunner {
         credit(stu.getId(), s2, 5);  // 羽毛球 5 节
         credit(stu.getId(), s3, 3);  // 编程 3 节
 
-        System.out.println("[DemoDataSeeder] seeded 3 teachers + 1 student (per-subject credits)");
+        // 管理员
+        User admin = new User();
+        admin.setPhone("13900000000"); admin.setName("管理员"); admin.setRole(3); admin.setStatus(1);
+        admin.setPasswordHash(encoder.encode("123456"));
+        userMapper.insert(admin);
+
+        System.out.println("[DemoDataSeeder] seeded 4 teachers(1 pending) + 1 student + 1 admin");
     }
 
     private void credit(long studentId, Subject s, int total) {
@@ -70,6 +78,20 @@ public class DemoDataSeeder implements CommandLineRunner {
         sc.setStudentId(studentId); sc.setSubjectId(s.getId());
         sc.setCreditsTotal(total); sc.setCreditsUsed(0);
         creditMapper.insert(sc);
+    }
+
+    private void pendingTeacher(String phone, String name, String title, String intro, Subject s) {
+        User u = new User();
+        u.setPhone(phone); u.setName(name); u.setRole(2); u.setStatus(1);
+        u.setPasswordHash(encoder.encode("123456"));
+        userMapper.insert(u);
+        TeacherProfile tp = new TeacherProfile();
+        tp.setUserId(u.getId()); tp.setTitle(title); tp.setIntro(intro);
+        tp.setRating(BigDecimal.valueOf(5.0)); tp.setAuditStatus(0); // 待审核
+        teacherMapper.insert(tp);
+        TeacherSubject ts = new TeacherSubject();
+        ts.setTeacherId(u.getId()); ts.setSubjectId(s.getId());
+        teacherSubjectMapper.insert(ts);
     }
 
     private Subject subj(String name, String cat) {

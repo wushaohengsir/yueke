@@ -12,15 +12,18 @@ const router = createRouter({
     { path: '/history', name: 'history', component: () => import('../views/HistoryView.vue'), meta: { auth: true } },
     { path: '/mine', name: 'mine', component: () => import('../views/MineView.vue'), meta: { auth: true } },
     { path: '/teacher', name: 'teacher', component: () => import('../views/TeacherView.vue'), meta: { auth: true, teacher: true } },
+    { path: '/admin', name: 'admin', component: () => import('../views/AdminView.vue'), meta: { auth: true, admin: true } },
   ],
 })
 
 router.beforeEach((to) => {
   const auth = useAuthStore()
   if (to.meta.auth && !auth.isLoggedIn) return { name: 'login' }
-  const isTeacher = auth.user?.role === 'teacher'
-  if (to.meta.teacher && !isTeacher) return { name: 'home' }
-  if (!to.meta.teacher && isTeacher && to.name !== 'login') return { name: 'teacher' }
+  const role = auth.user?.role
+  if (to.meta.teacher && role !== 'teacher') return { name: 'home' }
+  if (to.meta.admin && role !== 'admin') return { name: 'home' }
+  if (role === 'teacher' && !to.meta.teacher && to.name !== 'login') return { name: 'teacher' }
+  if (role === 'admin' && !to.meta.admin && to.name !== 'login') return { name: 'admin' }
 })
 
 export default router

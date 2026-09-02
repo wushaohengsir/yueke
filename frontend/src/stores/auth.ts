@@ -9,7 +9,7 @@ export const useAuthStore = defineStore('auth', () => {
   const isLoggedIn = computed(() => !!user.value)
   const isStudent = computed(() => user.value?.role === 'student')
 
-  async function login(phone: string, password: string, role: 'student' | 'teacher') {
+  async function login(phone: string, password: string, role: 'student' | 'teacher' | 'admin') {
     const u = await api.login(phone, password, role)
     user.value = u
     return u

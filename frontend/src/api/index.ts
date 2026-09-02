@@ -20,8 +20,9 @@ async function call<T>(p: Promise<any>): Promise<T> {
 interface RawTeacher { id: number; name: string; title: string; intro: string; rating: number; subjects: string[] }
 
 export const api = {
-  async login(phone: string, _password: string, role: 'student' | 'teacher'): Promise<User> {
-    const data = await call<any>(http.post('/api/auth/login', { phone, password: '123456', role: role === 'student' ? 1 : 2 }))
+  async login(phone: string, _password: string, role: 'student' | 'teacher' | 'admin'): Promise<User> {
+    const roleNum = role === 'student' ? 1 : role === 'teacher' ? 2 : 3
+    const data = await call<any>(http.post('/api/auth/login', { phone, password: '123456', role: roleNum }))
     localStorage.setItem('token', data.token)
     return { id: data.userId, role, name: data.name, phone, credits: 20 }
   },
@@ -101,5 +102,17 @@ export const api = {
   async toggleTemplate(id: number): Promise<{ ok: boolean }> {
     try { await call(http.post(`/api/teacher/templates/${id}/toggle`, {})); return { ok: true } }
     catch { return { ok: false } }
+  },
+
+  // ---- 管理端 ----
+  async getAdminTeachers(status?: number): Promise<any[]> {
+    return call<any[]>(http.get('/api/admin/teachers', { params: status != null ? { status } : {} }))
+  },
+  async auditTeacher(userId: number, approve: boolean): Promise<{ ok: boolean }> {
+    try { await call(http.post(`/api/admin/teachers/${userId}/audit`, { approve })); return { ok: true } }
+    catch { return { ok: false } }
+  },
+  async getDashboard(): Promise<any> {
+    return call<any>(http.get('/api/admin/dashboard'))
   },
 }
