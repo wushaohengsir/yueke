@@ -92,4 +92,55 @@ public class AdminService {
         m.put("bookingsBySubject", bySubject);
         return m;
     }
+
+    // ---- 用户管理：按角色列用户 ----
+    public List<Map<String, Object>> listUsers(Integer role) {
+        LambdaQueryWrapper<User> q = new LambdaQueryWrapper<>();
+        if (role != null) q.eq(User::getRole, role);
+        List<User> us = userMapper.selectList(q.orderByDesc(User::getId));
+        List<Map<String, Object>> out = new ArrayList<>();
+        for (User u : us) {
+            Map<String, Object> m = new LinkedHashMap<>();
+            m.put("id", u.getId());
+            m.put("name", u.getName());
+            m.put("phone", u.getPhone());
+            m.put("role", u.getRole());
+            m.put("status", u.getStatus());
+            out.add(m);
+        }
+        return out;
+    }
+
+    // ---- 用户管理：禁用/启用 ----
+    public boolean toggleUser(long userId, boolean enable) {
+        User u = userMapper.selectById(userId);
+        if (u == null) return false;
+        u.setStatus(enable ? 1 : 0);
+        userMapper.updateById(u);
+        return true;
+    }
+
+    // ---- 科目管理：列表 ----
+    public List<Map<String, Object>> listSubjects() {
+        List<Subject> ss = subjectMapper.selectList(null);
+        List<Map<String, Object>> out = new ArrayList<>();
+        for (Subject s : ss) {
+            Map<String, Object> m = new LinkedHashMap<>();
+            m.put("id", s.getId());
+            m.put("name", s.getName());
+            m.put("category", s.getCategory());
+            out.add(m);
+        }
+        return out;
+    }
+
+    // ---- 科目管理：新增 ----
+    public boolean addSubject(String name, String category) {
+        Long cnt = subjectMapper.selectCount(new LambdaQueryWrapper<Subject>().eq(Subject::getName, name));
+        if (cnt != null && cnt > 0) return false; // 重名
+        Subject s = new Subject();
+        s.setName(name); s.setCategory(category);
+        subjectMapper.insert(s);
+        return true;
+    }
 }

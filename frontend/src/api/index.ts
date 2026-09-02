@@ -115,4 +115,18 @@ export const api = {
   async getDashboard(): Promise<any> {
     return call<any>(http.get('/api/admin/dashboard'))
   },
+  async getAdminUsers(role?: number): Promise<any[]> {
+    return call<any[]>(http.get('/api/admin/users', { params: role != null ? { role } : {} }))
+  },
+  async toggleUser(id: number, enable: boolean): Promise<{ ok: boolean }> {
+    try { await call(http.post(`/api/admin/users/${id}/toggle`, { enable })); return { ok: true } }
+    catch { return { ok: false } }
+  },
+  async getAdminSubjects(): Promise<any[]> {
+    return call<any[]>(http.get('/api/admin/subjects'))
+  },
+  async addSubject(name: string, category: string): Promise<{ ok: boolean; msg?: string }> {
+    try { await call(http.post('/api/admin/subjects', { name, category })); return { ok: true } }
+    catch (e: any) { return { ok: false, msg: e.message } }
+  },
 }
