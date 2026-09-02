@@ -11,6 +11,7 @@ const router = createRouter({
     { path: '/leave', name: 'leave', component: () => import('../views/LeaveView.vue'), meta: { auth: true } },
     { path: '/history', name: 'history', component: () => import('../views/HistoryView.vue'), meta: { auth: true } },
     { path: '/mine', name: 'mine', component: () => import('../views/MineView.vue'), meta: { auth: true } },
+    { path: '/contract', name: 'contract', component: () => import('../views/ContractView.vue'), meta: { auth: true } },
     { path: '/teacher', name: 'teacher', component: () => import('../views/TeacherView.vue'), meta: { auth: true, teacher: true } },
     { path: '/admin', name: 'admin', component: () => import('../views/AdminView.vue'), meta: { auth: true, admin: true } },
   ],

@@ -18,7 +18,7 @@ const items = [
   { label: '请假', to: '/leave' },
   { label: '历史记录', to: '/history' },
   { label: '我的信息', to: '/mine' },
-  { label: '合同', to: '' },
+  { label: '合同', to: '/contract' },
   { label: '商品售卖', to: '' },
   { label: '特惠开团', to: '' },
   { label: '公众号', to: '' },

@@ -129,4 +129,17 @@ export const api = {
     try { await call(http.post('/api/admin/subjects', { name, category })); return { ok: true } }
     catch (e: any) { return { ok: false, msg: e.message } }
   },
+
+  // ---- 合同 ----
+  async getContracts(): Promise<any[]> {
+    return call<any[]>(http.get('/api/contracts'))
+  },
+  async purchase(teacherId: number, credits: number): Promise<{ ok: boolean; msg?: string }> {
+    try { await call(http.post('/api/contracts', { teacherId, credits })); return { ok: true } }
+    catch (e: any) { return { ok: false, msg: e.message } }
+  },
+  async signContract(id: number): Promise<{ ok: boolean }> {
+    try { await call(http.post(`/api/contracts/${id}/sign`, {})); return { ok: true } }
+    catch { return { ok: false } }
+  },
 }
