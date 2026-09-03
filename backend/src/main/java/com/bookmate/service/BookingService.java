@@ -13,6 +13,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
+import java.time.ZoneId;
 import java.util.*;
 import java.util.stream.Collectors;
 
@@ -60,7 +61,7 @@ public class BookingService {
         return views;
     }
 
-    // 生成未来 14 天可约时段：每个启用的模板直接作为一个完整时段（起止由老师控制，时长不固定）
+    // 生成「明天」的可约时段：明天是周几，就取该老师的周几模板；每个启用模板作为一个完整时段
     public List<SlotView> generateSlots(long teacherId) {
         List<TimeslotTemplate> templates = templateMapper.selectList(
                 new LambdaQueryWrapper<TimeslotTemplate>()
@@ -72,21 +73,19 @@ public class BookingService {
                         .in(Booking::getStatus, 0, 1))
                 .stream().map(Booking::getStartAt).collect(Collectors.toSet());
 
+        LocalDate tomorrow = LocalDate.now(ZoneId.of("Asia/Shanghai")).plusDays(1);
+        int weekday = tomorrow.getDayOfWeek().getValue();
+
         List<SlotView> slots = new ArrayList<>();
-        LocalDate start = LocalDate.now();
-        for (int d = 1; d <= 14; d++) {
-            LocalDate date = start.plusDays(d);
-            int weekday = date.getDayOfWeek().getValue();
-            for (TimeslotTemplate t : templates) {
-                if (t.getWeekday() != weekday) continue;
-                LocalDateTime s = LocalDateTime.of(date, t.getStartTime());
-                LocalDateTime e = LocalDateTime.of(date, t.getEndTime());
-                SlotView sv = new SlotView();
-                sv.setId(teacherId + "-" + s);
-                sv.setStartAt(s); sv.setEndAt(e);
-                sv.setStatus(booked.contains(s) ? "booked" : "available");
-                slots.add(sv);
-            }
+        for (TimeslotTemplate t : templates) {
+            if (t.getWeekday() != weekday) continue;
+            LocalDateTime s = LocalDateTime.of(tomorrow, t.getStartTime());
+            LocalDateTime e = LocalDateTime.of(tomorrow, t.getEndTime());
+            SlotView sv = new SlotView();
+            sv.setId(teacherId + "-" + s);
+            sv.setStartAt(s); sv.setEndAt(e);
+            sv.setStatus(booked.contains(s) ? "booked" : "available");
+            slots.add(sv);
         }
         slots.sort(Comparator.comparing(SlotView::getStartAt));
         return slots;

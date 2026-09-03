@@ -25,22 +25,16 @@ onMounted(async () => {
 const subjectName = computed(() => teacher.value?.subjects[0]?.name ?? '')
 const subjectCredit = computed(() => credits.value.find((c) => c.subjectName === subjectName.value))
 
-const days = computed(() => {
-  const map = new Map<string, Timeslot[]>()
-  for (const s of slots.value) {
-    const d = new Date(s.startAt).toDateString()
-    if (!map.has(d)) map.set(d, [])
-    map.get(d)!.push(s)
-  }
-  return [...map.entries()].slice(0, 7)
-})
-const activeDay = ref(0)
-const daySlots = computed(() => days.value[activeDay.value]?.[1] ?? [])
+// 可约时段仅限明天，直接平铺展示（后端已只返回明天的时段）
+const daySlots = computed(() => slots.value)
 
-function fmt(d: string) {
-  const dt = new Date(d)
-  return `${dt.getMonth() + 1}/${dt.getDate()} 周${'日一二三四五六'[dt.getDay()]}`
-}
+// 日期标签取自后端时段数据的真实 startAt（前端不自算日期，避免时区口径不一致）
+const dayLabel = computed(() => {
+  if (!slots.value.length) return ''
+  const d = new Date(slots.value[0].startAt)
+  return `${d.getMonth() + 1}月${d.getDate()}号 周${'日一二三四五六'[d.getDay()]}`
+})
+
 const p2 = (n: number) => String(n).padStart(2, '0')
 function range(s: Timeslot) {
   const a = new Date(s.startAt), b = new Date(s.endAt)
@@ -64,26 +58,22 @@ async function confirm() {
       <p class="muted" style="margin:6px 0 0">{{ teacher.intro }}</p>
     </div>
 
-    <!-- 日期条 -->
-    <div style="display:flex;gap:8px;overflow-x:auto;margin-bottom:14px">
-      <button v-for="(d, i) in days" :key="d[0]" class="tag"
-        :style="i === activeDay ? 'background:var(--sun)' : ''" @click="activeDay = i">
-        {{ fmt(d[1][0].startAt) }}
-      </button>
+    <!-- 明天可约时段 -->
+    <div class="card" v-if="daySlots.length">
+      <div class="row"><b>可约时段 · {{ dayLabel }}</b></div>
     </div>
-
-    <!-- 时段网格（时间段） -->
     <div class="slots">
       <div v-for="s in daySlots" :key="s.id" class="slot"
         :class="{ booked: s.status === 'booked', selected: selected?.id === s.id }"
         @click="s.status !== 'booked' && (selected = s)">
         {{ range(s) }}<br /><small>{{ s.status === 'booked' ? '已约' : '可选' }}</small>
       </div>
+      <p class="muted" v-if="!daySlots.length" style="margin:0">老师明天暂无开放时段</p>
     </div>
 
     <!-- 确认 -->
     <div class="card mt" v-if="selected">
-      <div class="row"><span class="muted">时段</span><b>{{ fmt(selected.startAt) }} {{ range(selected) }}</b></div>
+      <div class="row"><span class="muted">时段</span><b>{{ dayLabel }} {{ range(selected) }}</b></div>
       <div class="row mt"><span class="muted">消耗</span>
         <b>《{{ subjectName }}》1 课时（剩余 {{ subjectCredit?.remaining ?? 0 }}）</b></div>
       <input class="input mt" v-model="remark" placeholder="备注（可选）" />

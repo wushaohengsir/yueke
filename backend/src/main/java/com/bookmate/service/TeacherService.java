@@ -6,7 +6,11 @@ import com.bookmate.mapper.*;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.LocalTime;
+import java.time.ZoneId;
+import java.time.format.DateTimeFormatter;
 import java.util.*;
 import java.util.stream.Collectors;
 
@@ -39,6 +43,67 @@ public class TeacherService {
         lr.setReason(reason); lr.setStatus(0);
         leaveMapper.insert(lr);
         return true;
+    }
+
+    // ---- 老师：周课表（本周指定星期几的时段 + 预约状态） ----
+    public List<Map<String, Object>> listWeekSchedule(long teacherId, int weekday) {
+        // 本周该 weekday 对应的具体日期
+        LocalDate today = LocalDate.now(ZoneId.of("Asia/Shanghai"));
+        LocalDate monday = today.minusDays(today.getDayOfWeek().getValue() - 1);
+        LocalDate date = monday.plusDays(weekday - 1);
+
+        // 该老师该 weekday 的启用模板
+        List<TimeslotTemplate> templates = templateMapper.selectList(
+                new LambdaQueryWrapper<TimeslotTemplate>()
+                        .eq(TimeslotTemplate::getTeacherId, teacherId)
+                        .eq(TimeslotTemplate::getWeekday, weekday)
+                        .eq(TimeslotTemplate::getEnabled, 1)
+                        .orderByAsc(TimeslotTemplate::getStartTime));
+
+        // 该老师当天所有预约（活跃 + 已完成）
+        List<Booking> dayBookings = bookingMapper.selectList(
+                new LambdaQueryWrapper<Booking>()
+                        .eq(Booking::getTeacherId, teacherId)
+                        .ge(Booking::getStartAt, date.atStartOfDay())
+                        .lt(Booking::getStartAt, date.plusDays(1).atStartOfDay()));
+
+        Map<LocalTime, Booking> bookingByStart = new HashMap<>();
+        for (Booking b : dayBookings) {
+            bookingByStart.put(b.getStartAt().toLocalTime(), b);
+        }
+
+        List<Map<String, Object>> out = new ArrayList<>();
+        for (TimeslotTemplate t : templates) {
+            Map<String, Object> m = new LinkedHashMap<>();
+            m.put("id", t.getId());
+            m.put("startTime", t.getStartTime().format(DateTimeFormatter.ofPattern("HH:mm")));
+            m.put("endTime", t.getEndTime().format(DateTimeFormatter.ofPattern("HH:mm")));
+            Booking b = bookingByStart.get(t.getStartTime());
+            String status = "free"; // 未预约
+            String studentName = "";
+            String subjectName = "";
+            Long bookingId = null;
+            if (b != null) {
+                if (b.getStatus() == 2) {
+                    status = "completed"; // 已完成
+                } else {
+                    status = "booked";    // 已预约（待确认/已确认）
+                }
+                bookingId = b.getId();
+                User stu = userMapper.selectById(b.getStudentId());
+                studentName = stu != null ? stu.getName() : "";
+                if (b.getSubjectId() != null) {
+                    Subject s = subjectMapper.selectById(b.getSubjectId());
+                    subjectName = s != null ? s.getName() : "";
+                }
+            }
+            m.put("status", status);
+            m.put("bookingId", bookingId);
+            m.put("studentName", studentName);
+            m.put("subjectName", subjectName);
+            out.add(m);
+        }
+        return out;
     }
 
     // ---- 老师：周课表（带学员/科目名） ----
@@ -144,16 +209,44 @@ public class TeacherService {
     }
 
     public void addTemplate(long teacherId, int weekday, String start, String end, Long subjectId) {
+        LocalTime st = LocalTime.parse(start);
+        LocalTime et = LocalTime.parse(end);
         TimeslotTemplate t = new TimeslotTemplate();
         t.setTeacherId(teacherId); t.setWeekday(weekday);
-        t.setStartTime(java.time.LocalTime.parse(start));
-        t.setEndTime(java.time.LocalTime.parse(end));
+        t.setStartTime(st);
+        t.setEndTime(et);
         t.setSubjectId(subjectId); t.setEnabled(1);
         templateMapper.insert(t);
+        // 新模板启用后，停用同天重叠的旧启用模板
+        disableOverlapping(teacherId, weekday, st, et, t.getId());
     }
 
     public void toggleTemplate(long id) {
         TimeslotTemplate t = templateMapper.selectById(id);
-        if (t != null) { t.setEnabled(t.getEnabled() == 1 ? 0 : 1); templateMapper.updateById(t); }
+        if (t == null) return;
+        boolean enable = t.getEnabled() != 1; // 当前停用则本次启用
+        t.setEnabled(enable ? 1 : 0);
+        templateMapper.updateById(t);
+        // 启用时，停用同天重叠的其他启用模板
+        if (enable) {
+            disableOverlapping(t.getTeacherId(), t.getWeekday(), t.getStartTime(), t.getEndTime(), t.getId());
+        }
+    }
+
+    // 停用同老师、同星期、时间段重叠的其他已启用模板（同一时段仅一个模板生效）
+    private void disableOverlapping(long teacherId, int weekday, LocalTime start, LocalTime end, long excludeId) {
+        List<TimeslotTemplate> others = templateMapper.selectList(
+                new LambdaQueryWrapper<TimeslotTemplate>()
+                        .eq(TimeslotTemplate::getTeacherId, teacherId)
+                        .eq(TimeslotTemplate::getWeekday, weekday)
+                        .eq(TimeslotTemplate::getEnabled, 1)
+                        .ne(TimeslotTemplate::getId, excludeId));
+        for (TimeslotTemplate o : others) {
+            boolean overlap = start.isBefore(o.getEndTime()) && o.getStartTime().isBefore(end);
+            if (overlap) {
+                o.setEnabled(0);
+                templateMapper.updateById(o);
+            }
+        }
     }
 }

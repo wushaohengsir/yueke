@@ -29,6 +29,13 @@ public class TeacherController {
         return Result.ok(teacherService.listTeacherBookings(currentUserId(auth)));
     }
 
+    // 周课表（本周指定星期几的时段 + 预约状态）
+    @GetMapping("/week-schedule")
+    public Result<?> weekSchedule(@RequestHeader("Authorization") String auth,
+                                  @RequestParam int weekday) {
+        return Result.ok(teacherService.listWeekSchedule(currentUserId(auth), weekday));
+    }
+
     // 登记课时（标记完成）
     @PostMapping("/bookings/{id}/complete")
     public Result<?> complete(@RequestHeader("Authorization") String auth, @PathVariable long id) {

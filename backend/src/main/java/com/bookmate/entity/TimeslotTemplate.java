@@ -3,6 +3,7 @@ package com.bookmate.entity;
 import com.baomidou.mybatisplus.annotation.IdType;
 import com.baomidou.mybatisplus.annotation.TableId;
 import com.baomidou.mybatisplus.annotation.TableName;
+import com.fasterxml.jackson.annotation.JsonFormat;
 
 import java.time.LocalTime;
 
@@ -11,8 +12,8 @@ public class TimeslotTemplate {
     @TableId(type = IdType.AUTO) private Long id;
     private Long teacherId;
     private Integer weekday;
-    private LocalTime startTime;
-    private LocalTime endTime;
+    @JsonFormat(pattern = "HH:mm") private LocalTime startTime;
+    @JsonFormat(pattern = "HH:mm") private LocalTime endTime;
     private Long subjectId;
     private Integer enabled;
 

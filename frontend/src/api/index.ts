@@ -78,6 +78,9 @@ export const api = {
   async getTeacherBookings(): Promise<any[]> {
     return call<any[]>(http.get('/api/teacher/bookings'))
   },
+  async getWeekSchedule(weekday: number): Promise<any[]> {
+    return call<any[]>(http.get('/api/teacher/week-schedule', { params: { weekday } }))
+  },
   async completeBooking(id: number): Promise<{ ok: boolean }> {
     try { await call(http.post(`/api/teacher/bookings/${id}/complete`, {})); return { ok: true } }
     catch { return { ok: false } }
