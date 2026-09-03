@@ -61,7 +61,7 @@ public class BookingService {
         return views;
     }
 
-    // 生成「明天」的可约时段：明天是周几，就取该老师的周几模板；每个启用模板作为一个完整时段
+    // 生成可约时段：以晚上 21:00 为界滚动——当前 <21:00 显示今天，>=21:00 显示明天
     public List<SlotView> generateSlots(long teacherId) {
         List<TimeslotTemplate> templates = templateMapper.selectList(
                 new LambdaQueryWrapper<TimeslotTemplate>()
@@ -73,14 +73,16 @@ public class BookingService {
                         .in(Booking::getStatus, 0, 1))
                 .stream().map(Booking::getStartAt).collect(Collectors.toSet());
 
-        LocalDate tomorrow = LocalDate.now(ZoneId.of("Asia/Shanghai")).plusDays(1);
-        int weekday = tomorrow.getDayOfWeek().getValue();
+        LocalDateTime now = LocalDateTime.now(ZoneId.of("Asia/Shanghai"));
+        LocalDate target = now.toLocalTime().isBefore(LocalTime.of(21, 0))
+                ? now.toLocalDate() : now.toLocalDate().plusDays(1);
+        int weekday = target.getDayOfWeek().getValue();
 
         List<SlotView> slots = new ArrayList<>();
         for (TimeslotTemplate t : templates) {
             if (t.getWeekday() != weekday) continue;
-            LocalDateTime s = LocalDateTime.of(tomorrow, t.getStartTime());
-            LocalDateTime e = LocalDateTime.of(tomorrow, t.getEndTime());
+            LocalDateTime s = LocalDateTime.of(target, t.getStartTime());
+            LocalDateTime e = LocalDateTime.of(target, t.getEndTime());
             SlotView sv = new SlotView();
             sv.setId(teacherId + "-" + s);
             sv.setStartAt(s); sv.setEndAt(e);

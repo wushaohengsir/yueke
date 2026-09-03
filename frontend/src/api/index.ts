@@ -78,12 +78,12 @@ export const api = {
   async getTeacherBookings(): Promise<any[]> {
     return call<any[]>(http.get('/api/teacher/bookings'))
   },
-  async getWeekSchedule(weekday: number): Promise<any[]> {
-    return call<any[]>(http.get('/api/teacher/week-schedule', { params: { weekday } }))
+  async getWeekSchedule(weekOffset: number): Promise<any> {
+    return call<any>(http.get('/api/teacher/week-schedule', { params: { weekOffset } }))
   },
-  async completeBooking(id: number): Promise<{ ok: boolean }> {
+  async completeBooking(id: number): Promise<{ ok: boolean; msg?: string }> {
     try { await call(http.post(`/api/teacher/bookings/${id}/complete`, {})); return { ok: true } }
-    catch { return { ok: false } }
+    catch (e: any) { return { ok: false, msg: e.message } }
   },
   async getTeacherLeaves(): Promise<any[]> {
     return call<any[]>(http.get('/api/teacher/leaves'))
@@ -99,8 +99,12 @@ export const api = {
     try { await call(http.post('/api/teacher/templates', t)); return { ok: true } }
     catch { return { ok: false } }
   },
-  async toggleTemplate(id: number): Promise<{ ok: boolean }> {
+  async toggleTemplate(id: number): Promise<{ ok: boolean; msg?: string }> {
     try { await call(http.post(`/api/teacher/templates/${id}/toggle`, {})); return { ok: true } }
+    catch (e: any) { return { ok: false, msg: e.message } }
+  },
+  async deleteTemplate(id: number): Promise<{ ok: boolean }> {
+    try { await call(http.delete(`/api/teacher/templates/${id}`)); return { ok: true } }
     catch { return { ok: false } }
   },
 

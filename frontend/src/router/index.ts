@@ -13,6 +13,7 @@ const router = createRouter({
     { path: '/mine', name: 'mine', component: () => import('../views/MineView.vue'), meta: { auth: true } },
     { path: '/contract', name: 'contract', component: () => import('../views/ContractView.vue'), meta: { auth: true } },
     { path: '/teacher', name: 'teacher', component: () => import('../views/TeacherView.vue'), meta: { auth: true, teacher: true } },
+    { path: '/teacher/schedule/:date', name: 'teacher-day-schedule', component: () => import('../views/TeacherDayScheduleView.vue'), meta: { auth: true, teacher: true } },
     { path: '/admin', name: 'admin', component: () => import('../views/AdminView.vue'), meta: { auth: true, admin: true } },
   ],
 })

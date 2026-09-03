@@ -25,7 +25,7 @@ onMounted(async () => {
 const subjectName = computed(() => teacher.value?.subjects[0]?.name ?? '')
 const subjectCredit = computed(() => credits.value.find((c) => c.subjectName === subjectName.value))
 
-// 可约时段仅限明天，直接平铺展示（后端已只返回明天的时段）
+// 可约时段平铺展示（后端按晚9点滚动返回当天/明天时段）
 const daySlots = computed(() => slots.value)
 
 // 日期标签取自后端时段数据的真实 startAt（前端不自算日期，避免时区口径不一致）
@@ -58,7 +58,7 @@ async function confirm() {
       <p class="muted" style="margin:6px 0 0">{{ teacher.intro }}</p>
     </div>
 
-    <!-- 明天可约时段 -->
+    <!-- 可约时段 -->
     <div class="card" v-if="daySlots.length">
       <div class="row"><b>可约时段 · {{ dayLabel }}</b></div>
     </div>
@@ -68,7 +68,7 @@ async function confirm() {
         @click="s.status !== 'booked' && (selected = s)">
         {{ range(s) }}<br /><small>{{ s.status === 'booked' ? '已约' : '可选' }}</small>
       </div>
-      <p class="muted" v-if="!daySlots.length" style="margin:0">老师明天暂无开放时段</p>
+      <p class="muted" v-if="!daySlots.length" style="margin:0">老师暂无开放时段</p>
     </div>
 
     <!-- 确认 -->

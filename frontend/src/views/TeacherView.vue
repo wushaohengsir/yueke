@@ -25,11 +25,12 @@ function trange(t: any) {
 const selWeekday = ref(1)
 const dayTemplates = computed(() => templates.value.filter((t: any) => t.weekday === selWeekday.value))
 
-// 周课表两级：第一层选星期，第二层该天的时段 + 预约状态
-const selScheduleWeekday = ref(1)
-const weekSchedule = ref<any[]>([])
+// 周课表：按周翻页，显示具体日期 + 每天时段
+const weekOffset = ref(0)
+const weekSchedule = ref<any>({ weekStart: '', days: [] })
 const scheduleStatus = { free: '未预约', booked: '已预约', completed: '已完成' }
 const scheduleClass = { free: 's3', booked: 's1', completed: 's2' }
+const wdLabel = ['周一', '周二', '周三', '周四', '周五', '周六', '周日']
 
 async function load() {
   leaves.value = await api.getTeacherLeaves()
@@ -37,11 +38,23 @@ async function load() {
   await loadWeekSchedule()
 }
 async function loadWeekSchedule() {
-  weekSchedule.value = await api.getWeekSchedule(selScheduleWeekday.value)
+  weekSchedule.value = await api.getWeekSchedule(weekOffset.value)
 }
-function pickScheduleWeekday(w: number) {
-  selScheduleWeekday.value = w
+function shiftWeek(delta: number) {
+  weekOffset.value += delta
   loadWeekSchedule()
+}
+// 把 date 字符串（yyyy-MM-dd）格式化为「M月d号」
+function dayLabel(date: string) {
+  const d = new Date(date + 'T00:00:00')
+  return `${d.getMonth() + 1}月${d.getDate()}号`
+}
+// 某天的概览摘要：时段数 + 预约数
+function daySummary(day: any) {
+  const slots = day.slots || []
+  const booked = slots.filter((s: any) => s.status !== 'free').length
+  if (!slots.length) return '无安排'
+  return `${slots.length} 个时段 · ${booked} 个已约`
 }
 onMounted(load)
 
@@ -50,11 +63,18 @@ async function handle(id: number, approve: boolean) {
   await load()
 }
 async function toggle(id: number) {
-  await api.toggleTemplate(id)
+  const r = await api.toggleTemplate(id)
+  if (!r.ok) { alert(r.msg || '操作失败'); return }
+  await load()
+}
+async function removeTemplate(id: number) {
+  if (!confirm('确定删除该时段吗？')) return
+  await api.deleteTemplate(id)
   await load()
 }
 async function complete(id: number) {
-  await api.completeBooking(id)
+  const r = await api.completeBooking(id)
+  if (!r.ok) { alert(r.msg || '登记失败'); return }
   await load()
 }
 
@@ -80,24 +100,23 @@ function logout() { auth.logout(); router.replace('/login') }
       <button class="tag" :style="tab==='template'?'background:var(--sun)':''" @click="tab='template'">时段模板</button>
     </div>
 
-    <!-- 周课表：第一层选星期 -->
+    <!-- 周课表：周翻页 + 7 天概览 -->
     <div v-if="tab==='schedule'">
-      <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px">
-        <button v-for="(w, i) in wd" :key="i" class="tag"
-          :style="selScheduleWeekday===i+1 ? 'background:var(--sun)' : ''"
-          @click="pickScheduleWeekday(i+1)">{{ w }}</button>
+      <!-- 周翻页 -->
+      <div class="row" style="margin-bottom:14px">
+        <button class="btn ghost small" @click="shiftWeek(-1)">上一周</button>
+        <b style="margin:0 12px">{{ weekOffset===0 ? '本周' : (weekOffset<0 ? '过去 ' + (-weekOffset) + ' 周' : '未来 ' + weekOffset + ' 周') }}</b>
+        <button class="btn ghost small" @click="shiftWeek(1)">下一周</button>
       </div>
 
-      <!-- 第二层：该天的时段 + 预约状态 -->
-      <div class="card" v-for="s in weekSchedule" :key="s.id">
+      <!-- 7 天概览（点击进该日详情） -->
+      <div v-for="day in weekSchedule.days" :key="day.date" class="card" style="padding:12px 14px;cursor:pointer"
+        @click="router.push('/teacher/schedule/' + day.date)">
         <div class="row">
-          <b>{{ trange(s) }}</b>
-          <span class="st" :class="scheduleClass[s.status]">{{ scheduleStatus[s.status] }}</span>
+          <b>{{ dayLabel(day.date) }} · {{ wdLabel[day.weekday-1] }}</b>
+          <span class="muted">{{ daySummary(day) }}</span>
         </div>
-        <p class="muted" style="margin:6px 0" v-if="s.status!=='free'">{{ s.studentName }} · {{ s.subjectName }}</p>
-        <button class="btn small" v-if="s.status==='booked'" @click="complete(s.bookingId)">登记完成</button>
       </div>
-      <p class="muted" v-if="!weekSchedule.length">暂无 {{ wd[selScheduleWeekday-1] }} 的时段</p>
     </div>
 
     <!-- 请假审批 -->
@@ -126,10 +145,14 @@ function logout() { auth.logout(); router.replace('/login') }
       </div>
 
       <!-- 第二层：该天的时段列表 + 添加 -->
-      <div class="card" v-for="t in dayTemplates" :key="t.id">
+      <div class="card" v-for="t in dayTemplates" :key="t.id"
+        :style="t.enabled===1 ? 'background:#e6f7f4;border-color:var(--green)' : ''">
         <div class="row">
           <b>{{ trange(t) }}</b>
-          <button class="btn ghost small" @click="toggle(t.id)">{{ t.enabled===1?'停用':'启用' }}</button>
+          <span style="display:flex;gap:8px">
+            <button class="btn ghost small" @click="toggle(t.id)">{{ t.enabled===1?'停用':'启用' }}</button>
+            <button class="btn ghost small" style="color:var(--coral)" @click="removeTemplate(t.id)">删除</button>
+          </span>
         </div>
       </div>
       <p class="muted" v-if="!dayTemplates.length">暂无 {{ wd[selWeekday-1] }} 的时段</p>

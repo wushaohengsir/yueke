@@ -29,18 +29,20 @@ public class TeacherController {
         return Result.ok(teacherService.listTeacherBookings(currentUserId(auth)));
     }
 
-    // 周课表（本周指定星期几的时段 + 预约状态）
+    // 周课表（按周：weekOffset 0=本周，-1=上周，1=下周；过去读真实 booking，未来读模板+booking）
     @GetMapping("/week-schedule")
     public Result<?> weekSchedule(@RequestHeader("Authorization") String auth,
-                                  @RequestParam int weekday) {
-        return Result.ok(teacherService.listWeekSchedule(currentUserId(auth), weekday));
+                                  @RequestParam(defaultValue = "0") int weekOffset) {
+        return Result.ok(teacherService.listWeekSchedule(currentUserId(auth), weekOffset));
     }
 
-    // 登记课时（标记完成）
+    // 登记课时（标记完成；需已过上课结束时间）
     @PostMapping("/bookings/{id}/complete")
     public Result<?> complete(@RequestHeader("Authorization") String auth, @PathVariable long id) {
-        boolean ok = teacherService.completeBooking(currentUserId(auth), id);
-        return ok ? Result.ok(true) : Result.fail(400, "登记失败（仅已确认课时可登记）");
+        String r = teacherService.completeBooking(currentUserId(auth), id);
+        if ("ok".equals(r)) return Result.ok(true);
+        if ("not_time".equals(r)) return Result.fail(400, "课程尚未结束，无法登记完成");
+        return Result.fail(400, "登记失败（仅已确认课时可登记）");
     }
 
     // 请假列表
@@ -76,8 +78,15 @@ public class TeacherController {
     }
 
     @PostMapping("/templates/{id}/toggle")
-    public Result<?> toggle(@PathVariable long id) {
-        teacherService.toggleTemplate(id);
+    public Result<?> toggle(@RequestHeader("Authorization") String auth, @PathVariable long id) {
+        String r = teacherService.toggleTemplate(id);
+        if ("conflict".equals(r)) return Result.fail(409, "该时段与已启用的模板冲突，请先停用冲突的模板");
         return Result.ok(true);
+    }
+
+    @DeleteMapping("/templates/{id}")
+    public Result<?> deleteTemplate(@RequestHeader("Authorization") String auth, @PathVariable long id) {
+        boolean ok = teacherService.deleteTemplate(currentUserId(auth), id);
+        return ok ? Result.ok(true) : Result.fail(404, "删除失败（模板不存在或非本人模板）");
     }
 }

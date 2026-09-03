@@ -45,65 +45,114 @@ public class TeacherService {
         return true;
     }
 
-    // ---- 老师：周课表（本周指定星期几的时段 + 预约状态） ----
-    public List<Map<String, Object>> listWeekSchedule(long teacherId, int weekday) {
-        // 本周该 weekday 对应的具体日期
-        LocalDate today = LocalDate.now(ZoneId.of("Asia/Shanghai"));
-        LocalDate monday = today.minusDays(today.getDayOfWeek().getValue() - 1);
-        LocalDate date = monday.plusDays(weekday - 1);
+    // ---- 老师：周课表（按周，含具体日期；过去读真实 booking，未来读模板+booking） ----
+    public Map<String, Object> listWeekSchedule(long teacherId, int weekOffset) {
+        ZoneId zone = ZoneId.of("Asia/Shanghai");
+        LocalDate today = LocalDate.now(zone);
+        // 本周一 + 偏移
+        LocalDate monday = today.minusDays(today.getDayOfWeek().getValue() - 1).plusWeeks(weekOffset);
 
-        // 该老师该 weekday 的启用模板
+        // 该老师全部启用模板（用于未来可约预览）
         List<TimeslotTemplate> templates = templateMapper.selectList(
                 new LambdaQueryWrapper<TimeslotTemplate>()
                         .eq(TimeslotTemplate::getTeacherId, teacherId)
-                        .eq(TimeslotTemplate::getWeekday, weekday)
-                        .eq(TimeslotTemplate::getEnabled, 1)
-                        .orderByAsc(TimeslotTemplate::getStartTime));
+                        .eq(TimeslotTemplate::getEnabled, 1));
 
-        // 该老师当天所有预约（活跃 + 已完成）
-        List<Booking> dayBookings = bookingMapper.selectList(
+        // 该老师这一周内的全部 booking
+        List<Booking> weekBookings = bookingMapper.selectList(
                 new LambdaQueryWrapper<Booking>()
                         .eq(Booking::getTeacherId, teacherId)
-                        .ge(Booking::getStartAt, date.atStartOfDay())
-                        .lt(Booking::getStartAt, date.plusDays(1).atStartOfDay()));
+                        .ge(Booking::getStartAt, monday.atStartOfDay())
+                        .lt(Booking::getStartAt, monday.plusDays(7).atStartOfDay()));
 
-        Map<LocalTime, Booking> bookingByStart = new HashMap<>();
-        for (Booking b : dayBookings) {
-            bookingByStart.put(b.getStartAt().toLocalTime(), b);
+        // 按日期分组 booking
+        Map<LocalDate, List<Booking>> bookingsByDate = new HashMap<>();
+        for (Booking b : weekBookings) {
+            bookingsByDate.computeIfAbsent(b.getStartAt().toLocalDate(), k -> new ArrayList<>()).add(b);
         }
 
-        List<Map<String, Object>> out = new ArrayList<>();
-        for (TimeslotTemplate t : templates) {
-            Map<String, Object> m = new LinkedHashMap<>();
-            m.put("id", t.getId());
-            m.put("startTime", t.getStartTime().format(DateTimeFormatter.ofPattern("HH:mm")));
-            m.put("endTime", t.getEndTime().format(DateTimeFormatter.ofPattern("HH:mm")));
-            Booking b = bookingByStart.get(t.getStartTime());
-            String status = "free"; // 未预约
-            String studentName = "";
-            String subjectName = "";
-            Long bookingId = null;
-            if (b != null) {
-                if (b.getStatus() == 2) {
-                    status = "completed"; // 已完成
-                } else {
-                    status = "booked";    // 已预约（待确认/已确认）
+        List<Map<String, Object>> days = new ArrayList<>();
+        for (int d = 0; d < 7; d++) {
+            LocalDate date = monday.plusDays(d);
+            int weekday = date.getDayOfWeek().getValue();
+            boolean isPast = date.isBefore(today);
+
+            List<Map<String, Object>> slots = new ArrayList<>();
+            if (isPast) {
+                // 过去：只读真实 booking 记录
+                for (Booking b : bookingsByDate.getOrDefault(date, List.of())) {
+                    slots.add(slotOf(b.getStartAt().toLocalTime(), b.getEndAt().toLocalTime(),
+                            bookingStatus(b.getStatus()), b));
                 }
-                bookingId = b.getId();
-                User stu = userMapper.selectById(b.getStudentId());
-                studentName = stu != null ? stu.getName() : "";
-                if (b.getSubjectId() != null) {
-                    Subject s = subjectMapper.selectById(b.getSubjectId());
-                    subjectName = s != null ? s.getName() : "";
+            } else {
+                // 未来（含今天）：模板生成可约空档 + 叠加已预约
+                List<Booking> dayBookings = bookingsByDate.getOrDefault(date, List.of());
+                Map<LocalTime, Booking> byStart = new HashMap<>();
+                for (Booking b : dayBookings) byStart.put(b.getStartAt().toLocalTime(), b);
+
+                for (TimeslotTemplate t : templates) {
+                    if (t.getWeekday() != weekday) continue;
+                    LocalTime st = t.getStartTime();
+                    LocalTime et = t.getEndTime();
+                    Booking b = byStart.get(st);
+                    if (b != null) {
+                        slots.add(slotOf(st, et, bookingStatus(b.getStatus()), b));
+                    } else {
+                        Map<String, Object> s = new LinkedHashMap<>();
+                        s.put("startTime", st.format(DateTimeFormatter.ofPattern("HH:mm")));
+                        s.put("endTime", et.format(DateTimeFormatter.ofPattern("HH:mm")));
+                        s.put("status", "free");
+                        s.put("bookingId", null);
+                        s.put("studentName", "");
+                        s.put("subjectName", "");
+                        slots.add(s);
+                    }
+                }
+                // 未来若存在模板时段之外的预约（如客服代约），一并展示
+                Set<LocalTime> templateStarts = templates.stream()
+                        .filter(t -> t.getWeekday() == weekday)
+                        .map(TimeslotTemplate::getStartTime)
+                        .collect(Collectors.toSet());
+                for (Booking b : dayBookings) {
+                    if (templateStarts.contains(b.getStartAt().toLocalTime())) continue;
+                    slots.add(slotOf(b.getStartAt().toLocalTime(), b.getEndAt().toLocalTime(),
+                            bookingStatus(b.getStatus()), b));
                 }
             }
-            m.put("status", status);
-            m.put("bookingId", bookingId);
-            m.put("studentName", studentName);
-            m.put("subjectName", subjectName);
-            out.add(m);
+            slots.sort(Comparator.comparing((Map<String, Object> s) -> String.valueOf(s.get("startTime"))));
+
+            Map<String, Object> day = new LinkedHashMap<>();
+            day.put("date", date.toString());
+            day.put("weekday", weekday);
+            day.put("slots", slots);
+            days.add(day);
         }
+
+        Map<String, Object> out = new LinkedHashMap<>();
+        out.put("weekStart", monday.toString());
+        out.put("days", days);
         return out;
+    }
+
+    private String bookingStatus(int status) {
+        return status == 2 ? "completed" : "booked";
+    }
+
+    private Map<String, Object> slotOf(LocalTime st, LocalTime et, String status, Booking b) {
+        Map<String, Object> s = new LinkedHashMap<>();
+        s.put("startTime", st.format(DateTimeFormatter.ofPattern("HH:mm")));
+        s.put("endTime", et.format(DateTimeFormatter.ofPattern("HH:mm")));
+        s.put("status", status);
+        s.put("bookingId", b.getId());
+        User stu = userMapper.selectById(b.getStudentId());
+        s.put("studentName", stu != null ? stu.getName() : "");
+        if (b.getSubjectId() != null) {
+            Subject subj = subjectMapper.selectById(b.getSubjectId());
+            s.put("subjectName", subj != null ? subj.getName() : "");
+        } else {
+            s.put("subjectName", "");
+        }
+        return s;
     }
 
     // ---- 老师：周课表（带学员/科目名） ----
@@ -128,13 +177,14 @@ public class TeacherService {
         return out;
     }
 
-    // ---- 老师：登记课时（标记完成） ----
-    public boolean completeBooking(long teacherId, long bookingId) {
+    // ---- 老师：登记课时（标记完成；需已过上课结束时间） ----
+    public String completeBooking(long teacherId, long bookingId) {
         Booking b = bookingMapper.selectById(bookingId);
-        if (b == null || !b.getTeacherId().equals(teacherId) || b.getStatus() != 1) return false;
+        if (b == null || !b.getTeacherId().equals(teacherId) || b.getStatus() != 1) return "not_found";
+        if (LocalDateTime.now(ZoneId.of("Asia/Shanghai")).isBefore(b.getEndAt())) return "not_time";
         b.setStatus(2); // 已完成
         bookingMapper.updateById(b);
-        return true;
+        return "ok";
     }
 
     // ---- 老师：请假列表 ----
@@ -215,38 +265,45 @@ public class TeacherService {
         t.setTeacherId(teacherId); t.setWeekday(weekday);
         t.setStartTime(st);
         t.setEndTime(et);
-        t.setSubjectId(subjectId); t.setEnabled(1);
+        t.setSubjectId(subjectId);
+        t.setEnabled(0); // 默认停用，由老师手动启用
         templateMapper.insert(t);
-        // 新模板启用后，停用同天重叠的旧启用模板
-        disableOverlapping(teacherId, weekday, st, et, t.getId());
     }
 
-    public void toggleTemplate(long id) {
+    // 启停模板：启用时若与同天已启用的模板时间重叠，则拒绝并返回 conflict
+    public String toggleTemplate(long id) {
         TimeslotTemplate t = templateMapper.selectById(id);
-        if (t == null) return;
+        if (t == null) return "not_found";
         boolean enable = t.getEnabled() != 1; // 当前停用则本次启用
+        if (enable && hasOverlap(t)) {
+            return "conflict";
+        }
         t.setEnabled(enable ? 1 : 0);
         templateMapper.updateById(t);
-        // 启用时，停用同天重叠的其他启用模板
-        if (enable) {
-            disableOverlapping(t.getTeacherId(), t.getWeekday(), t.getStartTime(), t.getEndTime(), t.getId());
-        }
+        return "ok";
     }
 
-    // 停用同老师、同星期、时间段重叠的其他已启用模板（同一时段仅一个模板生效）
-    private void disableOverlapping(long teacherId, int weekday, LocalTime start, LocalTime end, long excludeId) {
+    // 删除模板（仅能删除自己的模板）
+    public boolean deleteTemplate(long teacherId, long id) {
+        TimeslotTemplate t = templateMapper.selectById(id);
+        if (t == null || !t.getTeacherId().equals(teacherId)) return false;
+        templateMapper.deleteById(id);
+        return true;
+    }
+
+    // 是否存在同老师、同星期、时间段重叠且已启用的其他模板
+    private boolean hasOverlap(TimeslotTemplate t) {
         List<TimeslotTemplate> others = templateMapper.selectList(
                 new LambdaQueryWrapper<TimeslotTemplate>()
-                        .eq(TimeslotTemplate::getTeacherId, teacherId)
-                        .eq(TimeslotTemplate::getWeekday, weekday)
+                        .eq(TimeslotTemplate::getTeacherId, t.getTeacherId())
+                        .eq(TimeslotTemplate::getWeekday, t.getWeekday())
                         .eq(TimeslotTemplate::getEnabled, 1)
-                        .ne(TimeslotTemplate::getId, excludeId));
+                        .ne(TimeslotTemplate::getId, t.getId()));
         for (TimeslotTemplate o : others) {
-            boolean overlap = start.isBefore(o.getEndTime()) && o.getStartTime().isBefore(end);
-            if (overlap) {
-                o.setEnabled(0);
-                templateMapper.updateById(o);
-            }
+            boolean overlap = t.getStartTime().isBefore(o.getEndTime())
+                    && o.getStartTime().isBefore(t.getEndTime());
+            if (overlap) return true;
         }
+        return false;
     }
 }
