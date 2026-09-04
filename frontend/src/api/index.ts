@@ -138,6 +138,15 @@ export const api = {
     catch (e: any) { return { ok: false, msg: e.message } }
   },
 
+  // ---- 管理端排课（代学生预约未来课程）----
+  async getAdminPlanSlots(teacherId: number, date: string): Promise<any[]> {
+    return call<any[]>(http.get('/api/admin/plan/slots', { params: { teacherId, date } }))
+  },
+  async adminBookPlan(p: { studentId: number; teacherId: number; startAt: string; endAt: string }): Promise<{ ok: boolean; msg?: string }> {
+    try { await call(http.post('/api/admin/plan/book', p)); return { ok: true } }
+    catch (e: any) { return { ok: false, msg: e.message } }
+  },
+
   // ---- 合同 ----
   async getContracts(): Promise<any[]> {
     return call<any[]>(http.get('/api/contracts'))

@@ -23,6 +23,12 @@ public class AdminService {
         this.subjectMapper = s; this.teacherSubjectMapper = ts;
     }
 
+    // 判断某用户是否指定角色（1学员2老师3管理员）
+    public boolean isUserRole(long userId, int role) {
+        User u = userMapper.selectById(userId);
+        return u != null && u.getRole() != null && u.getRole().intValue() == role;
+    }
+
     // ---- 老师审核列表 ----
     public List<Map<String, Object>> listTeachers(Integer auditStatus) {
         LambdaQueryWrapper<TeacherProfile> q = new LambdaQueryWrapper<>();

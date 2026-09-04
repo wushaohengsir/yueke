@@ -34,4 +34,12 @@ public class JwtUtil {
                 .parseClaimsJws(token).getBody();
         return Long.valueOf(claims.getSubject());
     }
+
+    // 解析角色（登录时写入的 role claim，数字字符串：1学员2老师3管理员）
+    public Integer parseRole(String token) {
+        var claims = Jwts.parserBuilder().setSigningKey(key()).build()
+                .parseClaimsJws(token).getBody();
+        Object role = claims.get("role");
+        return role == null ? null : Integer.valueOf(String.valueOf(role));
+    }
 }

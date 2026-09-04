@@ -93,6 +93,52 @@ public class BookingService {
         return slots;
     }
 
+    // 生成「指定日期」该老师的可约时段（管理员排课用）：仅启用模板、按 date 星期匹配；
+    // date 为今天时剔除已开始/已过时段，未来日期整日保留；已占用时段标 booked
+    public List<SlotView> generateSlotsOn(long teacherId, LocalDate date) {
+        List<TimeslotTemplate> templates = templateMapper.selectList(
+                new LambdaQueryWrapper<TimeslotTemplate>()
+                        .eq(TimeslotTemplate::getTeacherId, teacherId)
+                        .eq(TimeslotTemplate::getEnabled, 1));
+        LocalDateTime now = LocalDateTime.now(ZoneId.of("Asia/Shanghai"));
+        Set<LocalDateTime> booked = bookingMapper.selectList(
+                new LambdaQueryWrapper<Booking>()
+                        .eq(Booking::getTeacherId, teacherId)
+                        .in(Booking::getStatus, 0, 1))
+                .stream().map(Booking::getStartAt)
+                .filter(s -> s.toLocalDate().equals(date)).collect(Collectors.toSet());
+
+        int weekday = date.getDayOfWeek().getValue();
+        List<SlotView> slots = new ArrayList<>();
+        for (TimeslotTemplate t : templates) {
+            if (t.getWeekday() != weekday) continue;
+            LocalDateTime s = LocalDateTime.of(date, t.getStartTime());
+            LocalDateTime e = LocalDateTime.of(date, t.getEndTime());
+            if (!s.isAfter(now)) continue; // 已开始/已过的时段不可再排
+            SlotView sv = new SlotView();
+            sv.setId(teacherId + "-" + s);
+            sv.setStartAt(s); sv.setEndAt(e);
+            sv.setStatus(booked.contains(s) ? "booked" : "available");
+            slots.add(sv);
+        }
+        slots.sort(Comparator.comparing(SlotView::getStartAt));
+        return slots;
+    }
+
+    // 该 startAt/endAt 是否为该老师某条「启用模板」的精确时段（星期+起止一致）
+    public boolean isOpenTemplateSlot(long teacherId, LocalDateTime startAt, LocalDateTime endAt) {
+        List<TimeslotTemplate> templates = templateMapper.selectList(
+                new LambdaQueryWrapper<TimeslotTemplate>()
+                        .eq(TimeslotTemplate::getTeacherId, teacherId)
+                        .eq(TimeslotTemplate::getEnabled, 1));
+        for (TimeslotTemplate t : templates) {
+            if (t.getWeekday() == startAt.getDayOfWeek().getValue()
+                    && t.getStartTime().equals(startAt.toLocalTime())
+                    && t.getEndTime().equals(endAt.toLocalTime())) return true;
+        }
+        return false;
+    }
+
     // 学员分课程课时
     public List<CreditView> getCredits(long studentId) {
         List<StudentCredit> list = creditMapper.selectList(

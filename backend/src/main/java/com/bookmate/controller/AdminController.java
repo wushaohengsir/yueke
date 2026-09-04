@@ -2,19 +2,26 @@ package com.bookmate.controller;
 
 import com.bookmate.common.Result;
 import com.bookmate.service.AdminService;
+import com.bookmate.service.BookingService;
 import com.bookmate.util.JwtUtil;
+import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.web.bind.annotation.*;
 
+import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.time.ZoneId;
 import java.util.Map;
 
 @RestController
 @RequestMapping("/api/admin")
 public class AdminController {
     private final AdminService adminService;
+    private final BookingService bookingService;
     private final JwtUtil jwtUtil;
 
-    public AdminController(AdminService a, JwtUtil j) {
+    public AdminController(AdminService a, BookingService b, JwtUtil j) {
         this.adminService = a;
+        this.bookingService = b;
         this.jwtUtil = j;
     }
 
@@ -72,5 +79,51 @@ public class AdminController {
         if (name == null || name.isBlank()) return Result.fail(400, "科目名不能为空");
         boolean ok = adminService.addSubject(name, category);
         return ok ? Result.ok(true) : Result.fail(400, "科目已存在");
+    }
+
+    // ===== 管理员排课：代学生预约未来课程（仅 role=3 可调）=====
+
+    private boolean isAdmin(String auth) {
+        try {
+            String token = auth != null && auth.startsWith("Bearer ") ? auth.substring(7) : auth;
+            Integer role = jwtUtil.parseRole(token);
+            return role != null && role == 3;
+        } catch (Exception e) {
+            return false;
+        }
+    }
+
+    // 某老师某日期的开放时段（按启用模板 + 该日星期匹配）
+    @GetMapping("/plan/slots")
+    public Result<?> planSlots(@RequestHeader("Authorization") String auth,
+                               @RequestParam long teacherId,
+                               @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate date) {
+        if (!isAdmin(auth)) return Result.fail(403, "无权访问");
+        if (date.isBefore(LocalDate.now(ZoneId.of("Asia/Shanghai")))) {
+            return Result.fail(400, "只能安排今天及以后的课程");
+        }
+        return Result.ok(bookingService.generateSlotsOn(teacherId, date));
+    }
+
+    // 管理员为指定学员预约指定老师某时段（时段须在该老师启用模板内）
+    @PostMapping("/plan/book")
+    public Result<?> planBook(@RequestHeader("Authorization") String auth, @RequestBody Map<String, Object> body) {
+        if (!isAdmin(auth)) return Result.fail(403, "无权访问");
+        long studentId = Long.parseLong(String.valueOf(body.get("studentId")));
+        long teacherId = Long.parseLong(String.valueOf(body.get("teacherId")));
+        LocalDateTime start = LocalDateTime.parse(String.valueOf(body.get("startAt")));
+        LocalDateTime end = LocalDateTime.parse(String.valueOf(body.get("endAt")));
+        if (!adminService.isUserRole(studentId, 1)) return Result.fail(400, "请选择学员账号");
+        if (start.isBefore(LocalDateTime.now(ZoneId.of("Asia/Shanghai")))) {
+            return Result.fail(400, "只能安排尚未开始的时段");
+        }
+        if (!bookingService.isOpenTemplateSlot(teacherId, start, end)) {
+            return Result.fail(400, "所选时段不在该老师开放时段内");
+        }
+        try {
+            return Result.ok(bookingService.create(teacherId, studentId, start, end));
+        } catch (IllegalStateException e) {
+            return Result.fail(409, e.getMessage());
+        }
     }
 }

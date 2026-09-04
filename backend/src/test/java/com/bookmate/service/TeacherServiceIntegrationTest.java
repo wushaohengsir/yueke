@@ -12,9 +12,12 @@ import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.jdbc.Sql;
 import org.springframework.transaction.annotation.Transactional;
 
+import com.bookmate.dto.SlotView;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.time.ZoneId;
+import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -31,6 +34,9 @@ class TeacherServiceIntegrationTest {
 
     @Autowired
     private TimeslotTemplateMapper templateMapper;
+
+    @Autowired
+    private BookingService bookingService;
 
     // 老师 id=1
     private static final long TEACHER_ID = 1L;
@@ -137,5 +143,52 @@ class TeacherServiceIntegrationTest {
         // 停用模板1（enable=false），应 ok
         assertEquals("ok", teacherService.toggleTemplate(1L));
         assertEquals(0, templateMapper.selectById(1L).getEnabled());
+    }
+
+    // ---- 排课辅助：指定日期时段生成 + 模板时段归属 ----
+    private static LocalDate nextWeekday(int dow) {
+        LocalDate d = LocalDate.now().plusDays(1); // 从明天起找，避免"今天"剔除已过时段导致不稳定
+        while (d.getDayOfWeek().getValue() != dow) d = d.plusDays(1);
+        return d;
+    }
+
+    @Test
+    void generateSlotsOn_按启用模板匹配指定日期并标记占用() {
+        teacherService.toggleTemplate(1L); // 启用模板1(周一18-19)
+        LocalDate mon = nextWeekday(1);
+        List<SlotView> slots = bookingService.generateSlotsOn(TEACHER_ID, mon);
+        assertEquals(1, slots.size());
+        assertEquals("available", slots.get(0).getStatus());
+        assertEquals(LocalDateTime.of(mon, LocalTime.of(18, 0)), slots.get(0).getStartAt());
+
+        // 插入一条同 startAt 的活跃预约后，该时段应标记为已占用
+        Booking occ = new Booking();
+        occ.setTeacherId(TEACHER_ID); occ.setStudentId(2L); occ.setSubjectId(1L);
+        occ.setStartAt(LocalDateTime.of(mon, LocalTime.of(18, 0)));
+        occ.setEndAt(LocalDateTime.of(mon, LocalTime.of(19, 0)));
+        occ.setStatus(1);
+        bookingMapper.insert(occ);
+        slots = bookingService.generateSlotsOn(TEACHER_ID, mon);
+        assertEquals("booked", slots.get(0).getStatus());
+    }
+
+    @Test
+    void generateSlotsOn_非模板星期应返回空() {
+        teacherService.toggleTemplate(1L); // 老师只有周一(1)的模板
+        assertEquals(0, bookingService.generateSlotsOn(TEACHER_ID, nextWeekday(3)).size());
+    }
+
+    @Test
+    void isOpenTemplateSlot_仅启用模板精确时段为真() {
+        teacherService.toggleTemplate(1L); // 启用模板1(周一18-19)
+        LocalDate mon = nextWeekday(1);
+        assertTrue(bookingService.isOpenTemplateSlot(TEACHER_ID,
+                LocalDateTime.of(mon, LocalTime.of(18, 0)), LocalDateTime.of(mon, LocalTime.of(19, 0))));
+        // 不在模板内的起止
+        assertFalse(bookingService.isOpenTemplateSlot(TEACHER_ID,
+                LocalDateTime.of(mon, LocalTime.of(18, 30)), LocalDateTime.of(mon, LocalTime.of(19, 30))));
+        // 未启用模板(模板2 周一18-20)的时段
+        assertFalse(bookingService.isOpenTemplateSlot(TEACHER_ID,
+                LocalDateTime.of(mon, LocalTime.of(18, 0)), LocalDateTime.of(mon, LocalTime.of(20, 0))));
     }
 }
