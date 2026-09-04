@@ -3,6 +3,7 @@ import { ref, onMounted, computed } from 'vue'
 import { api } from '../api'
 import type { Booking } from '../types'
 import Tabbar from '../components/Tabbar.vue'
+import { mdHm } from '../utils/datetime'
 
 const bookings = ref<Booking[]>([])
 const reason = ref('')
@@ -11,12 +12,6 @@ const done = ref(false)
 
 onMounted(async () => { bookings.value = await api.listBookings() })
 const confirmed = computed(() => bookings.value.filter((b) => b.status === 1))
-
-const p2 = (n: number) => String(n).padStart(2, '0')
-function fmt(d: string) {
-  const dt = new Date(d)
-  return `${dt.getMonth() + 1}/${dt.getDate()} ${p2(dt.getHours())}:${p2(dt.getMinutes())}`
-}
 async function submit() {
   if (!target.value || !reason.value) return
   await api.createLeave(target.value.id, reason.value)
@@ -38,7 +33,7 @@ async function submit() {
 
     <div v-for="b in confirmed" :key="b.id" class="card">
       <div class="row">
-        <b>{{ fmt(b.startAt) }} · {{ b.teacherName }}</b>
+        <b>{{ mdHm(b.startAt) }} · {{ b.teacherName }}</b>
         <button class="btn small" @click="target = b">申请请假</button>
       </div>
       <p class="muted" style="margin:6px 0 0">{{ b.subjectName }}</p>

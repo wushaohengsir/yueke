@@ -1,11 +1,13 @@
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
-import { useRouter } from 'vue-router'
 import { useAuthStore } from '../stores/auth'
 import { api } from '../api'
+import { useLogout } from '../composables/useLogout'
+import { AUDIT_STATUS, ROLE_TEXT as roleText } from '../utils/status'
+import { fmtDate, timeRange, dayLabelWeek } from '../utils/datetime'
 
-const router = useRouter()
 const auth = useAuthStore()
+const logout = useLogout()
 const tab = ref<'dashboard' | 'audit' | 'users' | 'subjects' | 'booking'>('dashboard')
 const dash = ref<any>(null)
 const teachers = ref<any[]>([])
@@ -15,10 +17,6 @@ const userRoleFilter = ref<number | null>(null)
 const subjects = ref<any[]>([])
 const subjForm = ref({ name: '', category: '' })
 const subjMsg = ref('')
-
-const stText = ['待审核', '已通过', '已驳回']
-const stClass = ['s4', 's2', 's3']
-const roleText = ['', '学员', '老师', '管理员']
 
 async function load() {
   dash.value = await api.getDashboard()
@@ -62,10 +60,6 @@ const planSlots = ref<any[]>([])
 const planLoaded = ref(false)
 const selSlot = ref<any>(null)
 const planMsg = ref('')
-const p2 = (n: number) => String(n).padStart(2, '0')
-function fmtDate(d: Date) {
-  return `${d.getFullYear()}-${p2(d.getMonth() + 1)}-${p2(d.getDate())}`
-}
 const todayMin = fmtDate(new Date())
 function defaultDate() {
   const d = new Date(); d.setDate(d.getDate() + 1); return fmtDate(d)
@@ -77,13 +71,9 @@ async function loadPlanBase() {
   if (!planForm.value.studentId) planForm.value.date = defaultDate()
 }
 function clearPlanSlots() { planSlots.value = []; planLoaded.value = false; selSlot.value = null; planMsg.value = '' }
-function fmtSlot(s: any) {
-  const st = new Date(s.startAt), et = new Date(s.endAt)
-  return `${p2(st.getHours())}:${p2(st.getMinutes())}-${p2(et.getHours())}:${p2(et.getMinutes())}`
-}
+const fmtSlot = (s: any) => timeRange(s.startAt, s.endAt)
 function dayCN(dateStr: string) {
-  const d = new Date(dateStr + 'T00:00:00')
-  return `${d.getMonth() + 1}月${d.getDate()}日 周${'日一二三四五六'[d.getDay()]}`
+  return dayLabelWeek(dateStr)
 }
 function studentName() {
   return (students.value.find((s: any) => String(s.id) === String(planForm.value.studentId)) || {}).name || '该学员'
@@ -108,7 +98,6 @@ async function bookPlan() {
   planMsg.value = r.ok ? `✓ 已为「${studentName()}」安排 ${fmtSlot(selSlot.value)} 的课` : '✗ ' + (r.msg || '排课失败')
   if (r.ok) await loadPlanSlots()
 }
-function logout() { auth.logout(); router.replace('/login') }
 </script>
 
 <template>
@@ -156,7 +145,7 @@ function logout() { auth.logout(); router.replace('/login') }
       <div class="card" v-for="t in teachers" :key="t.userId">
         <div class="row">
           <b>{{ t.name }}</b>
-          <span class="st" :class="stClass[t.auditStatus]">{{ stText[t.auditStatus] }}</span>
+          <span class="st" :class="AUDIT_STATUS[t.auditStatus]?.cls">{{ AUDIT_STATUS[t.auditStatus]?.text }}</span>
         </div>
         <p class="muted" style="margin:6px 0">{{ t.phone }} · {{ t.title }} · {{ t.subjects }}</p>
         <div class="row" v-if="t.auditStatus===0">

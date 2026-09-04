@@ -3,16 +3,17 @@ import { ref, onMounted, computed } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useAuthStore } from '../stores/auth'
 import { api } from '../api'
+import { useLogout } from '../composables/useLogout'
+import { SCHEDULE_STATUS } from '../utils/status'
+import { WD_LABELS } from '../utils/datetime'
 
 const route = useRoute()
 const router = useRouter()
 const auth = useAuthStore()
+const logout = useLogout()
 
 const date = String(route.params.date) // yyyy-MM-dd
 const day = ref<any>(null)
-const scheduleStatus: Record<string, string> = { free: '未预约', booked: '已预约', completed: '已完成' }
-const scheduleClass: Record<string, string> = { free: 's3', booked: 's1', completed: 's2' }
-const wdLabel = ['周一', '周二', '周三', '周四', '周五', '周六', '周日']
 
 // 根据日期反推 weekOffset（该日期所在周相对本周的偏移）
 function weekOffsetOf(dateStr: string): number {
@@ -31,7 +32,7 @@ function weekOffsetOf(dateStr: string): number {
 
 const dayLabel = computed(() => {
   const d = new Date(date + 'T00:00:00')
-  return `${d.getMonth() + 1}月${d.getDate()}号 · ${wdLabel[(d.getDay() + 6) % 7]}`
+  return `${d.getMonth() + 1}月${d.getDate()}号 · ${WD_LABELS[(d.getDay() + 6) % 7]}`
 })
 
 onMounted(async () => {
@@ -46,8 +47,6 @@ async function complete(id: number) {
   const data: any = await api.getWeekSchedule(weekOffsetOf(date))
   day.value = (data.days || []).find((x: any) => x.date === date) || day.value
 }
-
-function logout() { auth.logout(); router.replace('/login') }
 </script>
 
 <template>
@@ -66,7 +65,7 @@ function logout() { auth.logout(); router.replace('/login') }
     <div class="card" v-for="s in (day && day.slots || [])" :key="(day.date + s.startTime + s.bookingId)">
       <div class="row">
         <span>{{ s.startTime }}-{{ s.endTime }}</span>
-        <span class="st" :class="scheduleClass[s.status]">{{ scheduleStatus[s.status] }}</span>
+        <span class="st" :class="SCHEDULE_STATUS[s.status]?.cls">{{ SCHEDULE_STATUS[s.status]?.text }}</span>
       </div>
       <div class="row" v-if="s.status!=='free' && s.studentName" style="padding-top:6px">
         <span class="muted">{{ s.studentName }} · {{ s.subjectName }}</span>

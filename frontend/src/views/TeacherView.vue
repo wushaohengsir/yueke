@@ -3,23 +3,18 @@ import { ref, onMounted, computed } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAuthStore } from '../stores/auth'
 import { api } from '../api'
-import type { Booking } from '../types'
+import { useLogout } from '../composables/useLogout'
+import { SCHEDULE_STATUS, LEAVE_STATUS } from '../utils/status'
+import { WD_LABELS as wd, dayLabel, mdHmRange as range, trimHM } from '../utils/datetime'
 
 const router = useRouter()
 const auth = useAuthStore()
+const logout = useLogout()
 const tab = ref<'schedule' | 'leave' | 'template'>('schedule')
 const leaves = ref<any[]>([])
 const templates = ref<any[]>([])
 
-const wd = ['周一', '周二', '周三', '周四', '周五', '周六', '周日']
-const p2 = (n: number) => String(n).padStart(2, '0')
-function range(s: string, e: string) {
-  const a = new Date(s), b = new Date(e)
-  return `${a.getMonth() + 1}/${a.getDate()} ${p2(a.getHours())}:${p2(a.getMinutes())}-${p2(b.getHours())}:${p2(b.getMinutes())}`
-}
-function trange(t: any) {
-  return `${t.startTime}-${t.endTime}`
-}
+const trange = (t: any) => `${t.startTime}-${t.endTime}`
 
 // 时段模板两级：第一层选星期（1-7），第二层该天的时段列表 + 添加
 const selWeekday = ref(1)
@@ -28,9 +23,6 @@ const dayTemplates = computed(() => templates.value.filter((t: any) => t.weekday
 // 周课表：按周翻页，显示具体日期 + 每天时段
 const weekOffset = ref(0)
 const weekSchedule = ref<any>({ weekStart: '', days: [] })
-const scheduleStatus = { free: '未预约', booked: '已预约', completed: '已完成' }
-const scheduleClass = { free: 's3', booked: 's1', completed: 's2' }
-const wdLabel = ['周一', '周二', '周三', '周四', '周五', '周六', '周日']
 
 async function load() {
   leaves.value = await api.getTeacherLeaves()
@@ -43,11 +35,6 @@ async function loadWeekSchedule() {
 function shiftWeek(delta: number) {
   weekOffset.value += delta
   loadWeekSchedule()
-}
-// 把 date 字符串（yyyy-MM-dd）格式化为「M月d号」
-function dayLabel(date: string) {
-  const d = new Date(date + 'T00:00:00')
-  return `${d.getMonth() + 1}月${d.getDate()}号`
 }
 // 某天的概览摘要：时段数 + 预约数
 function daySummary(day: any) {
@@ -77,8 +64,8 @@ const editing = ref<number | null>(null)
 const ef = ref({ start: '', end: '' })
 function startEdit(t: any) {
   editing.value = t.id
-  ef.value.start = String(t.startTime || '').slice(0, 5) // 后端时间可能带秒，裁剪到 HH:mm
-  ef.value.end = String(t.endTime || '').slice(0, 5)
+  ef.value.start = trimHM(t.startTime) // 后端时间可能带秒，裁剪到 HH:mm
+  ef.value.end = trimHM(t.endTime)
 }
 async function saveEdit() {
   if (!editing.value) return
@@ -104,7 +91,6 @@ async function addTpl() {
   if (!r.ok) { alert(r.msg || '添加失败'); return }
   await load()
 }
-function logout() { auth.logout(); router.replace('/login') }
 </script>
 
 <template>
@@ -133,7 +119,7 @@ function logout() { auth.logout(); router.replace('/login') }
       <div v-for="day in weekSchedule.days" :key="day.date" class="card" style="padding:12px 14px;cursor:pointer"
         @click="router.push('/teacher/schedule/' + day.date)">
         <div class="row">
-          <b>{{ dayLabel(day.date) }} · {{ wdLabel[day.weekday-1] }}</b>
+          <b>{{ dayLabel(day.date) }} · {{ wd[day.weekday-1] }}</b>
           <span class="muted">{{ daySummary(day) }}</span>
         </div>
       </div>
@@ -144,8 +130,8 @@ function logout() { auth.logout(); router.replace('/login') }
       <div class="card" v-for="l in leaves" :key="l.id">
         <div class="row">
           <b>{{ l.studentName }} · {{ l.subjectName }}</b>
-          <span class="st" :class="l.status===0?'s1':(l.status===1?'s4':'s3')">
-            {{ l.status===0?'待审批':(l.status===1?'已批准':'已驳回') }}</span>
+          <span class="st" :class="LEAVE_STATUS[l.status]?.cls">
+            {{ LEAVE_STATUS[l.status]?.text }}</span>
         </div>
         <p class="muted" style="margin:6px 0">{{ range(l.startAt, l.endAt) }} · 事由：{{ l.reason }}</p>
         <div class="row" v-if="l.status===0">

@@ -2,12 +2,11 @@
 import { ref, onMounted, computed } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { api } from '../api'
-import { useAuthStore } from '../stores/auth'
 import type { Credit, Teacher, Timeslot } from '../types'
+import { dayLabelWeek, timeRange } from '../utils/datetime'
 
 const route = useRoute()
 const router = useRouter()
-const auth = useAuthStore()
 const teacher = ref<Teacher>()
 const slots = ref<Timeslot[]>([])
 const credits = ref<Credit[]>([])
@@ -29,21 +28,13 @@ const subjectCredit = computed(() => credits.value.find((c) => c.subjectName ===
 const daySlots = computed(() => slots.value)
 
 // 日期标签取自后端时段数据的真实 startAt（前端不自算日期，避免时区口径不一致）
-const dayLabel = computed(() => {
-  if (!slots.value.length) return ''
-  const d = new Date(slots.value[0].startAt)
-  return `${d.getMonth() + 1}月${d.getDate()}号 周${'日一二三四五六'[d.getDay()]}`
-})
+const dayLabel = computed(() => (slots.value.length ? dayLabelWeek(slots.value[0].startAt) : ''))
 
-const p2 = (n: number) => String(n).padStart(2, '0')
-function range(s: Timeslot) {
-  const a = new Date(s.startAt), b = new Date(s.endAt)
-  return `${p2(a.getHours())}:${p2(a.getMinutes())}-${p2(b.getHours())}:${p2(b.getMinutes())}`
-}
+const range = (s: Timeslot) => timeRange(s.startAt, s.endAt)
 
 async function confirm() {
   if (!selected.value) return
-  const r = await api.createBooking(tid, selected.value, auth.user!)
+  const r = await api.createBooking(tid, selected.value)
   if (r.ok) credits.value = await api.getCredits() // 刷新分课程课时
   result.value = { ok: r.ok, msg: r.msg }
 }

@@ -1,4 +1,7 @@
 // 真实后端 API（Spring Boot :8080），Axios + JWT 拦截器
+// 接口约定（视图只需知道这两条）：
+//   查询类：失败直接 throw（视图可在 onMounted 外层兜底）
+//   操作类：统一返回 { ok, msg? }，永不 throw（内部 attempt 收敛 try/catch）
 import type { Booking, Credit, Teacher, Timeslot, User } from '../types'
 import { http } from './http'
 
@@ -7,6 +10,16 @@ async function call<T>(p: Promise<any>): Promise<T> {
   const body = res.data
   if (body.code !== 0) throw Object.assign(new Error(body.msg), { code: body.code })
   return body.data as T
+}
+
+/** 操作类统一出口：把异常收敛为 { ok:false, msg }，消灭每个方法的重复 try/catch */
+async function attempt(p: Promise<any>): Promise<{ ok: boolean; msg?: string }> {
+  try {
+    await call(p)
+    return { ok: true }
+  } catch (e: any) {
+    return { ok: false, msg: e.message }
+  }
 }
 
 interface RawTeacher { id: number; name: string; title: string; intro: string; rating: number; subjects: string[] }
@@ -22,6 +35,11 @@ export const api = {
     }))
     sessionStorage.setItem('token', data.token)
     return { id: data.userId, role, name: data.name, phone }
+  },
+
+  /** 科目列表（登录页老师注册用；视图不再直接摸 http） */
+  async listSubjects(): Promise<{ id: number; name: string }[]> {
+    return call(http.get('/api/auth/subjects'))
   },
 
   async listTeachers(): Promise<Teacher[]> {
@@ -42,7 +60,7 @@ export const api = {
     return call<Credit[]>(http.get('/api/credits'))
   },
 
-  async createBooking(teacherId: number, slot: Timeslot, _student: User): Promise<{ ok: boolean; msg?: string; booking?: Booking }> {
+  async createBooking(teacherId: number, slot: Timeslot): Promise<{ ok: boolean; msg?: string; booking?: Booking }> {
     try {
       const booking = await call<Booking>(http.post('/api/bookings', { teacherId, startAt: slot.startAt, endAt: slot.endAt }))
       return { ok: true, booking }
@@ -63,16 +81,9 @@ export const api = {
     })
   },
 
-  async createLeave(bookingId: number, reason: string): Promise<{ ok: boolean }> {
-    try {
-      await call(http.post('/api/leave', { bookingId, reason }))
-      return { ok: true }
-    } catch {
-      return { ok: false }
-    }
+  async createLeave(bookingId: number, reason: string) {
+    return attempt(http.post('/api/leave', { bookingId, reason }))
   },
-
-  async listLeaves(): Promise<any[]> { return [] },
 
   // ---- 老师端 ----
   async getTeacherBookings(): Promise<any[]> {
@@ -81,44 +92,37 @@ export const api = {
   async getWeekSchedule(weekOffset: number): Promise<any> {
     return call<any>(http.get('/api/teacher/week-schedule', { params: { weekOffset } }))
   },
-  async completeBooking(id: number): Promise<{ ok: boolean; msg?: string }> {
-    try { await call(http.post(`/api/teacher/bookings/${id}/complete`, {})); return { ok: true } }
-    catch (e: any) { return { ok: false, msg: e.message } }
+  async completeBooking(id: number) {
+    return attempt(http.post(`/api/teacher/bookings/${id}/complete`, {}))
   },
   async getTeacherLeaves(): Promise<any[]> {
     return call<any[]>(http.get('/api/teacher/leaves'))
   },
-  async handleLeave(id: number, approve: boolean): Promise<{ ok: boolean }> {
-    try { await call(http.post(`/api/teacher/leaves/${id}/handle`, { approve })); return { ok: true } }
-    catch { return { ok: false } }
+  async handleLeave(id: number, approve: boolean) {
+    return attempt(http.post(`/api/teacher/leaves/${id}/handle`, { approve }))
   },
   async getTemplates(): Promise<any[]> {
     return call<any[]>(http.get('/api/teacher/templates'))
   },
-  async addTemplate(t: { weekday: number; start: string; end: string; subjectId?: number }): Promise<{ ok: boolean; msg?: string }> {
-    try { await call(http.post('/api/teacher/templates', t)); return { ok: true } }
-    catch (e: any) { return { ok: false, msg: e.message } }
+  async addTemplate(t: { weekday: number; start: string; end: string; subjectId?: number }) {
+    return attempt(http.post('/api/teacher/templates', t))
   },
-  async toggleTemplate(id: number): Promise<{ ok: boolean; msg?: string }> {
-    try { await call(http.post(`/api/teacher/templates/${id}/toggle`, {})); return { ok: true } }
-    catch (e: any) { return { ok: false, msg: e.message } }
+  async toggleTemplate(id: number) {
+    return attempt(http.post(`/api/teacher/templates/${id}/toggle`, {}))
   },
-  async updateTemplate(id: number, start: string, end: string): Promise<{ ok: boolean; msg?: string }> {
-    try { await call(http.put(`/api/teacher/templates/${id}`, { start, end })); return { ok: true } }
-    catch (e: any) { return { ok: false, msg: e.message } }
+  async updateTemplate(id: number, start: string, end: string) {
+    return attempt(http.put(`/api/teacher/templates/${id}`, { start, end }))
   },
-  async deleteTemplate(id: number): Promise<{ ok: boolean }> {
-    try { await call(http.delete(`/api/teacher/templates/${id}`)); return { ok: true } }
-    catch { return { ok: false } }
+  async deleteTemplate(id: number) {
+    return attempt(http.delete(`/api/teacher/templates/${id}`))
   },
 
   // ---- 管理端 ----
   async getAdminTeachers(status?: number): Promise<any[]> {
     return call<any[]>(http.get('/api/admin/teachers', { params: status != null ? { status } : {} }))
   },
-  async auditTeacher(userId: number, approve: boolean): Promise<{ ok: boolean }> {
-    try { await call(http.post(`/api/admin/teachers/${userId}/audit`, { approve })); return { ok: true } }
-    catch { return { ok: false } }
+  async auditTeacher(userId: number, approve: boolean) {
+    return attempt(http.post(`/api/admin/teachers/${userId}/audit`, { approve }))
   },
   async getDashboard(): Promise<any> {
     return call<any>(http.get('/api/admin/dashboard'))
@@ -126,37 +130,32 @@ export const api = {
   async getAdminUsers(role?: number): Promise<any[]> {
     return call<any[]>(http.get('/api/admin/users', { params: role != null ? { role } : {} }))
   },
-  async toggleUser(id: number, enable: boolean): Promise<{ ok: boolean }> {
-    try { await call(http.post(`/api/admin/users/${id}/toggle`, { enable })); return { ok: true } }
-    catch { return { ok: false } }
+  async toggleUser(id: number, enable: boolean) {
+    return attempt(http.post(`/api/admin/users/${id}/toggle`, { enable }))
   },
   async getAdminSubjects(): Promise<any[]> {
     return call<any[]>(http.get('/api/admin/subjects'))
   },
-  async addSubject(name: string, category: string): Promise<{ ok: boolean; msg?: string }> {
-    try { await call(http.post('/api/admin/subjects', { name, category })); return { ok: true } }
-    catch (e: any) { return { ok: false, msg: e.message } }
+  async addSubject(name: string, category: string) {
+    return attempt(http.post('/api/admin/subjects', { name, category }))
   },
 
   // ---- 管理端排课（代学生预约未来课程）----
   async getAdminPlanSlots(teacherId: number, date: string): Promise<any[]> {
     return call<any[]>(http.get('/api/admin/plan/slots', { params: { teacherId, date } }))
   },
-  async adminBookPlan(p: { studentId: number; teacherId: number; startAt: string; endAt: string }): Promise<{ ok: boolean; msg?: string }> {
-    try { await call(http.post('/api/admin/plan/book', p)); return { ok: true } }
-    catch (e: any) { return { ok: false, msg: e.message } }
+  async adminBookPlan(p: { studentId: number; teacherId: number; startAt: string; endAt: string }) {
+    return attempt(http.post('/api/admin/plan/book', p))
   },
 
   // ---- 合同 ----
   async getContracts(): Promise<any[]> {
     return call<any[]>(http.get('/api/contracts'))
   },
-  async purchase(teacherId: number, credits: number): Promise<{ ok: boolean; msg?: string }> {
-    try { await call(http.post('/api/contracts', { teacherId, credits })); return { ok: true } }
-    catch (e: any) { return { ok: false, msg: e.message } }
+  async purchase(teacherId: number, credits: number) {
+    return attempt(http.post('/api/contracts', { teacherId, credits }))
   },
-  async signContract(id: number): Promise<{ ok: boolean }> {
-    try { await call(http.post(`/api/contracts/${id}/sign`, {})); return { ok: true } }
-    catch { return { ok: false } }
+  async signContract(id: number) {
+    return attempt(http.post(`/api/contracts/${id}/sign`, {}))
   },
 }

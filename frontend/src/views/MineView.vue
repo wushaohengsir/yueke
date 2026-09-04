@@ -1,22 +1,18 @@
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
-import { useRouter } from 'vue-router'
 import { useAuthStore } from '../stores/auth'
 import { api } from '../api'
 import type { Credit } from '../types'
 import Tabbar from '../components/Tabbar.vue'
+import { useLogout } from '../composables/useLogout'
 
-const router = useRouter()
 const auth = useAuthStore()
+const logout = useLogout()
 const credits = ref<Credit[]>([])
 
 onMounted(async () => {
   if (auth.isStudent) credits.value = await api.getCredits()
 })
-function logout() {
-  auth.logout()
-  router.replace('/login')
-}
 </script>
 
 <template>

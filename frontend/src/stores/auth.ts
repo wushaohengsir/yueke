@@ -45,10 +45,6 @@ export const useAuthStore = defineStore('auth', () => {
     sessionStorage.removeItem('token')
     persist()
   }
-  function consumeCredit() {
-    if (user.value && user.value.credits != null) user.value.credits--
-    persist()
-  }
 
-  return { user, isLoggedIn, isStudent, isGuest, login, enterAsGuest, logout, consumeCredit }
+  return { user, isLoggedIn, isStudent, isGuest, login, enterAsGuest, logout }
 })

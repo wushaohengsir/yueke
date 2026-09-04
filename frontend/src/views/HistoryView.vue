@@ -4,18 +4,12 @@ import { api } from '../api'
 import { useAuthStore } from '../stores/auth'
 import type { Booking } from '../types'
 import Tabbar from '../components/Tabbar.vue'
+import { BOOKING_STATUS } from '../utils/status'
+import { mdHm } from '../utils/datetime'
 
 const auth = useAuthStore()
 const bookings = ref<Booking[]>([])
 onMounted(async () => { bookings.value = await api.listBookings() })
-
-const stText = ['待确认', '已确认', '已完成', '已取消', '已请假']
-const stClass = ['s1', 's1', 's2', 's3', 's4']
-const dotColor = ['var(--blue)', 'var(--blue)', 'var(--green)', '#ccc', 'var(--sun)']
-function fmt(d: string) {
-  const dt = new Date(d)
-  return `${dt.getMonth() + 1}/${dt.getDate()} ${dt.getHours()}:00`
-}
 </script>
 
 <template>
@@ -28,10 +22,10 @@ function fmt(d: string) {
     <div class="card">
       <div class="timeline">
         <div v-for="b in bookings" :key="b.id" style="position:relative;margin-bottom:18px">
-          <span class="dot" :style="`background:${dotColor[b.status]}`"></span>
+          <span class="dot" :style="`background:${BOOKING_STATUS[b.status]?.dot}`"></span>
           <div class="row">
-            <b>{{ fmt(b.startAt) }} · {{ b.teacherName }}</b>
-            <span class="st" :class="stClass[b.status]">{{ stText[b.status] }}</span>
+            <b>{{ mdHm(b.startAt) }} · {{ b.teacherName }}</b>
+            <span class="st" :class="BOOKING_STATUS[b.status]?.cls">{{ BOOKING_STATUS[b.status]?.text }}</span>
           </div>
           <p class="muted" style="margin:4px 0 0">{{ b.subjectName }}</p>
         </div>

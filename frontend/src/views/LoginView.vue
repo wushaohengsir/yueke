@@ -2,7 +2,7 @@
 import { ref, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAuthStore } from '../stores/auth'
-import { http } from '../api/http'
+import { api } from '../api'
 import heroImg from '../assets/kazuha-hero.jpg'
 
 const router = useRouter()
@@ -19,8 +19,7 @@ const err = ref('')
 
 onMounted(async () => {
   try {
-    const res = await http.get('/api/auth/subjects')
-    if (res.data?.code === 0) subjects.value = res.data.data
+    subjects.value = await api.listSubjects()
   } catch { /* 忽略，注册时可重试 */ }
 })
 
@@ -48,7 +47,7 @@ async function submit() {
 </script>
 
 <template>
-  <div class="page" style="padding-top:24px">
+  <div class="page vcenter">
     <div class="hero-art">
       <img :src="heroImg" alt="枫叶剪影" />
       <div class="hero-title">

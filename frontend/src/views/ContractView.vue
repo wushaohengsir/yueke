@@ -3,15 +3,13 @@ import { ref, onMounted } from 'vue'
 import { api } from '../api'
 import type { Teacher } from '../types'
 import Tabbar from '../components/Tabbar.vue'
+import { CONTRACT_STATUS } from '../utils/status'
 
 const contracts = ref<any[]>([])
 const teachers = ref<Teacher[]>([])
 const buyTeacher = ref<number | null>(null)
 const buyCredits = ref(10)
 const msg = ref('')
-
-const stText = ['待签署', '已生效', '已结束']
-const stClass = ['s4', 's2', 's3']
 
 async function load() {
   contracts.value = await api.getContracts()
@@ -53,7 +51,7 @@ async function sign(id: number) {
     <div class="card" v-for="c in contracts" :key="c.id">
       <div class="row">
         <b>{{ c.teacherName }} · {{ c.subjectName }}</b>
-        <span class="st" :class="stClass[c.status]">{{ stText[c.status] }}</span>
+        <span class="st" :class="CONTRACT_STATUS[c.status]?.cls">{{ CONTRACT_STATUS[c.status]?.text }}</span>
       </div>
       <div class="row mt" style="font-size:14px">
         <span class="muted">课时包 {{ c.totalCredits }} 节</span>
