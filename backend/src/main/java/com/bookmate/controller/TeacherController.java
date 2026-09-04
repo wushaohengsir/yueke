@@ -73,7 +73,8 @@ public class TeacherController {
         String start = String.valueOf(body.get("start"));
         String end = String.valueOf(body.get("end"));
         Long subjectId = body.get("subjectId") != null ? Long.parseLong(String.valueOf(body.get("subjectId"))) : null;
-        teacherService.addTemplate(teacher, weekday, start, end, subjectId);
+        String r = teacherService.addTemplate(teacher, weekday, start, end, subjectId);
+        if ("bad_time".equals(r)) return Result.fail(400, "结束时间必须晚于开始时间");
         return Result.ok(true);
     }
 
@@ -81,6 +82,18 @@ public class TeacherController {
     public Result<?> toggle(@RequestHeader("Authorization") String auth, @PathVariable long id) {
         String r = teacherService.toggleTemplate(id);
         if ("conflict".equals(r)) return Result.fail(409, "该时段与已启用的模板冲突，请先停用冲突的模板");
+        return Result.ok(true);
+    }
+
+    @PutMapping("/templates/{id}")
+    public Result<?> updateTemplate(@RequestHeader("Authorization") String auth, @PathVariable long id,
+                                    @RequestBody Map<String, Object> body) {
+        String start = String.valueOf(body.get("start"));
+        String end = String.valueOf(body.get("end"));
+        String r = teacherService.updateTemplate(currentUserId(auth), id, start, end);
+        if ("not_found".equals(r)) return Result.fail(404, "模板不存在或非本人模板");
+        if ("enabled".equals(r)) return Result.fail(409, "该模板已启用，请先停用再修改时间");
+        if ("bad_time".equals(r)) return Result.fail(400, "结束时间必须晚于开始时间");
         return Result.ok(true);
     }
 

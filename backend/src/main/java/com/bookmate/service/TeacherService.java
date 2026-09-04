@@ -258,9 +258,11 @@ public class TeacherService {
                 .eq(TimeslotTemplate::getTeacherId, teacherId).orderByAsc(TimeslotTemplate::getWeekday));
     }
 
-    public void addTemplate(long teacherId, int weekday, String start, String end, Long subjectId) {
+    // 添加模板：结束时间必须晚于开始时间（否则如 20:00-19:00 违反时间规律），返回状态码
+    public String addTemplate(long teacherId, int weekday, String start, String end, Long subjectId) {
         LocalTime st = LocalTime.parse(start);
         LocalTime et = LocalTime.parse(end);
+        if (!st.isBefore(et)) return "bad_time"; // 结束 <= 开始 一律拒绝（相等也无意义）
         TimeslotTemplate t = new TimeslotTemplate();
         t.setTeacherId(teacherId); t.setWeekday(weekday);
         t.setStartTime(st);
@@ -268,6 +270,7 @@ public class TeacherService {
         t.setSubjectId(subjectId);
         t.setEnabled(0); // 默认停用，由老师手动启用
         templateMapper.insert(t);
+        return "ok";
     }
 
     // 启停模板：启用时若与同天已启用的模板时间重叠，则拒绝并返回 conflict
@@ -289,6 +292,20 @@ public class TeacherService {
         if (t == null || !t.getTeacherId().equals(teacherId)) return false;
         templateMapper.deleteById(id);
         return true;
+    }
+
+    // 修改模板时间：仅允许停用状态修改（启用中会影响已生成的约课时段，须先停用）；结束仍须晚于开始
+    public String updateTemplate(long teacherId, long id, String start, String end) {
+        TimeslotTemplate t = templateMapper.selectById(id);
+        if (t == null || !t.getTeacherId().equals(teacherId)) return "not_found";
+        if (t.getEnabled() == 1) return "enabled"; // 已启用，须先停用
+        LocalTime st = LocalTime.parse(start);
+        LocalTime et = LocalTime.parse(end);
+        if (!st.isBefore(et)) return "bad_time";
+        t.setStartTime(st);
+        t.setEndTime(et);
+        templateMapper.updateById(t);
+        return "ok";
     }
 
     // 是否存在同老师、同星期、时间段重叠且已启用的其他模板

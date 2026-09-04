@@ -20,7 +20,7 @@ export const api = {
       subjectId: subjectId ?? undefined,
       name: name || undefined,
     }))
-    localStorage.setItem('token', data.token)
+    sessionStorage.setItem('token', data.token)
     return { id: data.userId, role, name: data.name, phone }
   },
 
@@ -95,12 +95,16 @@ export const api = {
   async getTemplates(): Promise<any[]> {
     return call<any[]>(http.get('/api/teacher/templates'))
   },
-  async addTemplate(t: { weekday: number; start: string; end: string; subjectId?: number }): Promise<{ ok: boolean }> {
+  async addTemplate(t: { weekday: number; start: string; end: string; subjectId?: number }): Promise<{ ok: boolean; msg?: string }> {
     try { await call(http.post('/api/teacher/templates', t)); return { ok: true } }
-    catch { return { ok: false } }
+    catch (e: any) { return { ok: false, msg: e.message } }
   },
   async toggleTemplate(id: number): Promise<{ ok: boolean; msg?: string }> {
     try { await call(http.post(`/api/teacher/templates/${id}/toggle`, {})); return { ok: true } }
+    catch (e: any) { return { ok: false, msg: e.message } }
+  },
+  async updateTemplate(id: number, start: string, end: string): Promise<{ ok: boolean; msg?: string }> {
+    try { await call(http.put(`/api/teacher/templates/${id}`, { start, end })); return { ok: true } }
     catch (e: any) { return { ok: false, msg: e.message } }
   },
   async deleteTemplate(id: number): Promise<{ ok: boolean }> {

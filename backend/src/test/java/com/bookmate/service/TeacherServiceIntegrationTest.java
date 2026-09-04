@@ -13,6 +13,7 @@ import org.springframework.test.context.jdbc.Sql;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
+import java.time.LocalTime;
 import java.time.ZoneId;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -83,6 +84,39 @@ class TeacherServiceIntegrationTest {
                         .last("limit 1"));
         assertNotNull(t);
         assertEquals(0, t.getEnabled());
+    }
+
+    @Test
+    void addTemplate_结束时间不晚于开始应返回bad_time且不插入() {
+        String r = teacherService.addTemplate(TEACHER_ID, 5, "20:00", "19:00", 1L);
+        assertEquals("bad_time", r);
+        // 不应有任何周五 20:00 起始的模板被插入
+        Long cnt = templateMapper.selectCount(new LambdaQueryWrapper<TimeslotTemplate>()
+                .eq(TimeslotTemplate::getTeacherId, TEACHER_ID)
+                .eq(TimeslotTemplate::getWeekday, 5)
+                .eq(TimeslotTemplate::getStartTime, LocalTime.of(20, 0)));
+        assertEquals(0L, cnt);
+        // 相同值（如 20:00-20:00）同样拒绝
+        String r2 = teacherService.addTemplate(TEACHER_ID, 5, "20:00", "20:00", 1L);
+        assertEquals("bad_time", r2);
+    }
+
+    @Test
+    void updateTemplate_onlyDisabledEditable_rejectsEnabledAndBadTime() {
+        // test-data 里模板1(周一 18-19)、模板2(周一 18-20)均停用
+        // 1) 停用模板可改时间
+        assertEquals("ok", teacherService.updateTemplate(TEACHER_ID, 1L, "09:00", "10:00"));
+        TimeslotTemplate up = templateMapper.selectById(1L);
+        assertEquals(LocalTime.of(9, 0), up.getStartTime());
+        assertEquals(LocalTime.of(10, 0), up.getEndTime());
+        // 2) 启用后改时间被拒（模板2仍停用，9-10 不与之重叠，可启用）
+        assertEquals("ok", teacherService.toggleTemplate(1L));
+        assertEquals("enabled", teacherService.updateTemplate(TEACHER_ID, 1L, "11:00", "12:00"));
+        // 3) 倒序被拒（先停用再改）
+        assertEquals("ok", teacherService.toggleTemplate(1L));
+        assertEquals("bad_time", teacherService.updateTemplate(TEACHER_ID, 1L, "20:00", "19:00"));
+        // 4) 非本人模板
+        assertEquals("not_found", teacherService.updateTemplate(99L, 1L, "09:00", "10:00"));
     }
 
     @Test

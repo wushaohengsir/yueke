@@ -72,16 +72,36 @@ async function removeTemplate(id: number) {
   await api.deleteTemplate(id)
   await load()
 }
+// 编辑停用模板的时间：改错直接改，无需删了重建
+const editing = ref<number | null>(null)
+const ef = ref({ start: '', end: '' })
+function startEdit(t: any) {
+  editing.value = t.id
+  ef.value.start = String(t.startTime || '').slice(0, 5) // 后端时间可能带秒，裁剪到 HH:mm
+  ef.value.end = String(t.endTime || '').slice(0, 5)
+}
+async function saveEdit() {
+  if (!editing.value) return
+  if (!ef.value.start || !ef.value.end) { alert('请选择开始与结束时间'); return }
+  if (ef.value.start >= ef.value.end) { alert('结束时间必须晚于开始时间'); return }
+  const r = await api.updateTemplate(editing.value, ef.value.start, ef.value.end)
+  if (!r.ok) { alert(r.msg || '修改失败'); return }
+  editing.value = null
+  await load()
+}
 async function complete(id: number) {
   const r = await api.completeBooking(id)
   if (!r.ok) { alert(r.msg || '登记失败'); return }
   await load()
 }
 
-// 添加时段（weekday 由当前选中的星期决定，无默认时间值）
+// 添加时段（weekday 由当前选中的星期决定；结束时间必须晚于开始时间）
 const f = ref({ start: '', end: '' })
 async function addTpl() {
-  await api.addTemplate({ weekday: selWeekday.value, start: f.value.start, end: f.value.end })
+  if (!f.value.start || !f.value.end) { alert('请先选择开始与结束时间'); return }
+  if (f.value.start >= f.value.end) { alert('结束时间必须晚于开始时间'); return }
+  const r = await api.addTemplate({ weekday: selWeekday.value, start: f.value.start, end: f.value.end })
+  if (!r.ok) { alert(r.msg || '添加失败'); return }
   await load()
 }
 function logout() { auth.logout(); router.replace('/login') }
@@ -144,12 +164,24 @@ function logout() { auth.logout(); router.replace('/login') }
           @click="selWeekday = i+1">{{ w }}</button>
       </div>
 
-      <!-- 第二层：该天的时段列表 + 添加 -->
+      <!-- 第二层：该天的时段列表 + 添加；停用中的模板可直接编辑时间 -->
       <div class="card" v-for="t in dayTemplates" :key="t.id"
         :style="t.enabled===1 ? 'background:#e6f7f4;border-color:var(--green)' : ''">
-        <div class="row">
+        <div v-if="editing===t.id" class="col">
+          <div class="row">
+            <input class="input" type="time" style="margin:0" v-model="ef.start" />
+            <span class="muted">至</span>
+            <input class="input" type="time" style="margin:0" v-model="ef.end" />
+          </div>
+          <div class="row mt">
+            <button class="btn small" @click="saveEdit">保存</button>
+            <button class="btn ghost small" @click="editing=null">取消</button>
+          </div>
+        </div>
+        <div v-else class="row">
           <b>{{ trange(t) }}</b>
           <span style="display:flex;gap:8px">
+            <button v-if="t.enabled!==1" class="btn ghost small" @click="startEdit(t)">编辑</button>
             <button class="btn ghost small" @click="toggle(t.id)">{{ t.enabled===1?'停用':'启用' }}</button>
             <button class="btn ghost small" style="color:var(--coral)" @click="removeTemplate(t.id)">删除</button>
           </span>

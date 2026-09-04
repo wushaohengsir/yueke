@@ -7,7 +7,7 @@ const STORAGE_KEY = 'bookmate_user'
 
 function loadUser(): User | null {
   try {
-    const raw = localStorage.getItem(STORAGE_KEY)
+    const raw = sessionStorage.getItem(STORAGE_KEY)
     return raw ? (JSON.parse(raw) as User) : null
   } catch {
     return null
@@ -15,7 +15,9 @@ function loadUser(): User | null {
 }
 
 export const useAuthStore = defineStore('auth', () => {
-  // 登录态持久化：刷新后仍保持登录
+  // 登录态存 sessionStorage（按标签页隔离）：同一标签刷新(F5/地址栏回车)仍保持登录；
+  // 不同标签可各自登录不同身份（如一个学生端、一个老师端），互不覆盖。
+  // 不用 localStorage 的原因：全浏览器标签共享同一份，后登录者会覆盖先登录者，刷新即串身份。
   const user = ref<User | null>(loadUser())
 
   const isLoggedIn = computed(() => !!user.value && user.value.role !== 'guest')
@@ -23,8 +25,8 @@ export const useAuthStore = defineStore('auth', () => {
   const isGuest = computed(() => user.value?.role === 'guest')
 
   function persist() {
-    if (user.value) localStorage.setItem(STORAGE_KEY, JSON.stringify(user.value))
-    else localStorage.removeItem(STORAGE_KEY)
+    if (user.value) sessionStorage.setItem(STORAGE_KEY, JSON.stringify(user.value))
+    else sessionStorage.removeItem(STORAGE_KEY)
   }
 
   async function login(phone: string, password: string, role: 'student' | 'teacher' | 'admin',
@@ -40,7 +42,7 @@ export const useAuthStore = defineStore('auth', () => {
   }
   function logout() {
     user.value = null
-    localStorage.removeItem('token')
+    sessionStorage.removeItem('token')
     persist()
   }
   function consumeCredit() {
