@@ -1,15 +1,15 @@
 package com.bookmate.service;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.bookmate.common.AppTime;
+import com.bookmate.common.OpStatus;
 import com.bookmate.entity.*;
 import com.bookmate.mapper.*;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDate;
-import java.time.LocalDateTime;
 import java.time.LocalTime;
-import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
 import java.util.*;
 import java.util.stream.Collectors;
@@ -18,16 +18,15 @@ import java.util.stream.Collectors;
 public class TeacherService {
     private final BookingMapper bookingMapper;
     private final LeaveRequestMapper leaveMapper;
-    private final StudentCreditMapper creditMapper;
-    private final CreditLogMapper creditLogMapper;
     private final TimeslotTemplateMapper templateMapper;
     private final UserMapper userMapper;
-    private final SubjectMapper subjectMapper;
+    private final SubjectService subjectService;
+    private final CreditService creditService;
 
-    public TeacherService(BookingMapper b, LeaveRequestMapper l, StudentCreditMapper sc,
-                          CreditLogMapper cl, TimeslotTemplateMapper tm, UserMapper u, SubjectMapper s) {
-        this.bookingMapper = b; this.leaveMapper = l; this.creditMapper = sc;
-        this.creditLogMapper = cl; this.templateMapper = tm; this.userMapper = u; this.subjectMapper = s;
+    public TeacherService(BookingMapper b, LeaveRequestMapper l, TimeslotTemplateMapper tm,
+                          UserMapper u, SubjectService ss, CreditService cs) {
+        this.bookingMapper = b; this.leaveMapper = l; this.templateMapper = tm;
+        this.userMapper = u; this.subjectService = ss; this.creditService = cs;
     }
 
     // ---- 学员提交请假（待审批） ----
@@ -47,8 +46,7 @@ public class TeacherService {
 
     // ---- 老师：周课表（按周，含具体日期；过去读真实 booking，未来读模板+booking） ----
     public Map<String, Object> listWeekSchedule(long teacherId, int weekOffset) {
-        ZoneId zone = ZoneId.of("Asia/Shanghai");
-        LocalDate today = LocalDate.now(zone);
+        LocalDate today = AppTime.today();
         // 本周一 + 偏移
         LocalDate monday = today.minusDays(today.getDayOfWeek().getValue() - 1).plusWeeks(weekOffset);
 
@@ -64,6 +62,8 @@ public class TeacherService {
                         .eq(Booking::getTeacherId, teacherId)
                         .ge(Booking::getStartAt, monday.atStartOfDay())
                         .lt(Booking::getStartAt, monday.plusDays(7).atStartOfDay()));
+
+        Map<Long, Subject> subjById = subjectService.allById();
 
         // 按日期分组 booking
         Map<LocalDate, List<Booking>> bookingsByDate = new HashMap<>();
@@ -81,8 +81,7 @@ public class TeacherService {
             if (isPast) {
                 // 过去：只读真实 booking 记录
                 for (Booking b : bookingsByDate.getOrDefault(date, List.of())) {
-                    slots.add(slotOf(b.getStartAt().toLocalTime(), b.getEndAt().toLocalTime(),
-                            bookingStatus(b.getStatus()), b));
+                    slots.add(slotOf(b, subjById));
                 }
             } else {
                 // 未来（含今天）：模板生成可约空档 + 叠加已预约
@@ -96,7 +95,7 @@ public class TeacherService {
                     LocalTime et = t.getEndTime();
                     Booking b = byStart.get(st);
                     if (b != null) {
-                        slots.add(slotOf(st, et, bookingStatus(b.getStatus()), b));
+                        slots.add(slotOf(b, subjById));
                     } else {
                         Map<String, Object> s = new LinkedHashMap<>();
                         s.put("startTime", st.format(DateTimeFormatter.ofPattern("HH:mm")));
@@ -115,8 +114,7 @@ public class TeacherService {
                         .collect(Collectors.toSet());
                 for (Booking b : dayBookings) {
                     if (templateStarts.contains(b.getStartAt().toLocalTime())) continue;
-                    slots.add(slotOf(b.getStartAt().toLocalTime(), b.getEndAt().toLocalTime(),
-                            bookingStatus(b.getStatus()), b));
+                    slots.add(slotOf(b, subjById));
                 }
             }
             slots.sort(Comparator.comparing((Map<String, Object> s) -> String.valueOf(s.get("startTime"))));
@@ -138,20 +136,16 @@ public class TeacherService {
         return status == 2 ? "completed" : "booked";
     }
 
-    private Map<String, Object> slotOf(LocalTime st, LocalTime et, String status, Booking b) {
+    private Map<String, Object> slotOf(Booking b, Map<Long, Subject> subjById) {
         Map<String, Object> s = new LinkedHashMap<>();
-        s.put("startTime", st.format(DateTimeFormatter.ofPattern("HH:mm")));
-        s.put("endTime", et.format(DateTimeFormatter.ofPattern("HH:mm")));
-        s.put("status", status);
+        s.put("startTime", b.getStartAt().toLocalTime().format(DateTimeFormatter.ofPattern("HH:mm")));
+        s.put("endTime", b.getEndAt().toLocalTime().format(DateTimeFormatter.ofPattern("HH:mm")));
+        s.put("status", bookingStatus(b.getStatus()));
         s.put("bookingId", b.getId());
         User stu = userMapper.selectById(b.getStudentId());
         s.put("studentName", stu != null ? stu.getName() : "");
-        if (b.getSubjectId() != null) {
-            Subject subj = subjectMapper.selectById(b.getSubjectId());
-            s.put("subjectName", subj != null ? subj.getName() : "");
-        } else {
-            s.put("subjectName", "");
-        }
+        Subject subj = b.getSubjectId() != null ? subjById.get(b.getSubjectId()) : null;
+        s.put("subjectName", subj != null ? subj.getName() : "");
         return s;
     }
 
@@ -159,8 +153,7 @@ public class TeacherService {
     public List<Map<String, Object>> listTeacherBookings(long teacherId) {
         List<Booking> bs = bookingMapper.selectList(new LambdaQueryWrapper<Booking>()
                 .eq(Booking::getTeacherId, teacherId).orderByAsc(Booking::getStartAt));
-        Map<Long, Subject> subjById = subjectMapper.selectList(null).stream()
-                .collect(Collectors.toMap(Subject::getId, s -> s));
+        Map<Long, Subject> subjById = subjectService.allById();
         List<Map<String, Object>> out = new ArrayList<>();
         for (Booking b : bs) {
             User stu = userMapper.selectById(b.getStudentId());
@@ -170,21 +163,21 @@ public class TeacherService {
             m.put("endAt", b.getEndAt());
             m.put("status", b.getStatus());
             m.put("studentName", stu != null ? stu.getName() : "");
-            m.put("subjectName", b.getSubjectId() != null && subjById.get(b.getSubjectId()) != null
-                    ? subjById.get(b.getSubjectId()).getName() : "");
+            Subject subj = b.getSubjectId() != null ? subjById.get(b.getSubjectId()) : null;
+            m.put("subjectName", subj != null ? subj.getName() : "");
             out.add(m);
         }
         return out;
     }
 
     // ---- 老师：登记课时（标记完成；需已过上课结束时间） ----
-    public String completeBooking(long teacherId, long bookingId) {
+    public OpStatus completeBooking(long teacherId, long bookingId) {
         Booking b = bookingMapper.selectById(bookingId);
-        if (b == null || !b.getTeacherId().equals(teacherId) || b.getStatus() != 1) return "not_found";
-        if (LocalDateTime.now(ZoneId.of("Asia/Shanghai")).isBefore(b.getEndAt())) return "not_time";
+        if (b == null || !b.getTeacherId().equals(teacherId) || b.getStatus() != 1) return OpStatus.NOT_FOUND;
+        if (AppTime.now().isBefore(b.getEndAt())) return OpStatus.NOT_TIME;
         b.setStatus(2); // 已完成
         bookingMapper.updateById(b);
-        return "ok";
+        return OpStatus.OK;
     }
 
     // ---- 老师：请假列表 ----
@@ -197,8 +190,7 @@ public class TeacherService {
                 .in(LeaveRequest::getBookingId, myBookingIds).orderByDesc(LeaveRequest::getCreatedAt));
         Map<Long, Booking> bookingById = bookingMapper.selectBatchIds(myBookingIds).stream()
                 .collect(Collectors.toMap(Booking::getId, x -> x));
-        Map<Long, Subject> subjById = subjectMapper.selectList(null).stream()
-                .collect(Collectors.toMap(Subject::getId, s -> s));
+        Map<Long, Subject> subjById = subjectService.allById();
 
         List<Map<String, Object>> out = new ArrayList<>();
         for (LeaveRequest lr : lrs) {
@@ -210,8 +202,8 @@ public class TeacherService {
             m.put("studentName", stu != null ? stu.getName() : "");
             m.put("startAt", b != null ? b.getStartAt() : null);
             m.put("endAt", b != null ? b.getEndAt() : null);
-            m.put("subjectName", b != null && b.getSubjectId() != null && subjById.get(b.getSubjectId()) != null
-                    ? subjById.get(b.getSubjectId()).getName() : "");
+            Subject subj = b != null && b.getSubjectId() != null ? subjById.get(b.getSubjectId()) : null;
+            m.put("subjectName", subj != null ? subj.getName() : "");
             m.put("reason", lr.getReason());
             m.put("status", lr.getStatus());
             out.add(m);
@@ -227,23 +219,13 @@ public class TeacherService {
         Booking b = bookingMapper.selectById(lr.getBookingId());
         if (b == null || !b.getTeacherId().equals(teacherId)) return false;
 
-        lr.setHandledBy(teacherId); lr.setHandledAt(LocalDateTime.now());
+        lr.setHandledBy(teacherId); lr.setHandledAt(AppTime.now());
         if (approve) {
             lr.setStatus(1);
             b.setStatus(4); // 已请假
             bookingMapper.updateById(b);
             if (b.getSubjectId() != null) {
-                StudentCredit sc = creditMapper.selectOne(new LambdaQueryWrapper<StudentCredit>()
-                        .eq(StudentCredit::getStudentId, b.getStudentId())
-                        .eq(StudentCredit::getSubjectId, b.getSubjectId()));
-                if (sc != null) {
-                    sc.setCreditsUsed(Math.max(0, sc.getCreditsUsed() - 1));
-                    creditMapper.updateById(sc);
-                    CreditLog log = new CreditLog();
-                    log.setStudentId(b.getStudentId()); log.setSubjectId(b.getSubjectId());
-                    log.setDelta(1); log.setReason("请假返还"); log.setRefBooking(b.getId());
-                    creditLogMapper.insert(log);
-                }
+                creditService.refund(b.getStudentId(), b.getSubjectId(), b.getId());
             }
         } else {
             lr.setStatus(2); // 驳回，课时保持已确认
@@ -258,11 +240,11 @@ public class TeacherService {
                 .eq(TimeslotTemplate::getTeacherId, teacherId).orderByAsc(TimeslotTemplate::getWeekday));
     }
 
-    // 添加模板：结束时间必须晚于开始时间（否则如 20:00-19:00 违反时间规律），返回状态码
-    public String addTemplate(long teacherId, int weekday, String start, String end, Long subjectId) {
+    // 添加模板：结束时间必须晚于开始时间（否则如 20:00-19:00 违反时间规律）
+    public OpStatus addTemplate(long teacherId, int weekday, String start, String end, Long subjectId) {
         LocalTime st = LocalTime.parse(start);
         LocalTime et = LocalTime.parse(end);
-        if (!st.isBefore(et)) return "bad_time"; // 结束 <= 开始 一律拒绝（相等也无意义）
+        if (!st.isBefore(et)) return OpStatus.BAD_TIME; // 结束 <= 开始 一律拒绝（相等也无意义）
         TimeslotTemplate t = new TimeslotTemplate();
         t.setTeacherId(teacherId); t.setWeekday(weekday);
         t.setStartTime(st);
@@ -270,20 +252,20 @@ public class TeacherService {
         t.setSubjectId(subjectId);
         t.setEnabled(0); // 默认停用，由老师手动启用
         templateMapper.insert(t);
-        return "ok";
+        return OpStatus.OK;
     }
 
-    // 启停模板：启用时若与同天已启用的模板时间重叠，则拒绝并返回 conflict
-    public String toggleTemplate(long id) {
+    // 启停模板：启用时若与同天已启用的模板时间重叠，则拒绝并返回 CONFLICT
+    public OpStatus toggleTemplate(long id) {
         TimeslotTemplate t = templateMapper.selectById(id);
-        if (t == null) return "not_found";
+        if (t == null) return OpStatus.NOT_FOUND;
         boolean enable = t.getEnabled() != 1; // 当前停用则本次启用
         if (enable && hasOverlap(t)) {
-            return "conflict";
+            return OpStatus.CONFLICT;
         }
         t.setEnabled(enable ? 1 : 0);
         templateMapper.updateById(t);
-        return "ok";
+        return OpStatus.OK;
     }
 
     // 删除模板（仅能删除自己的模板）
@@ -295,17 +277,17 @@ public class TeacherService {
     }
 
     // 修改模板时间：仅允许停用状态修改（启用中会影响已生成的约课时段，须先停用）；结束仍须晚于开始
-    public String updateTemplate(long teacherId, long id, String start, String end) {
+    public OpStatus updateTemplate(long teacherId, long id, String start, String end) {
         TimeslotTemplate t = templateMapper.selectById(id);
-        if (t == null || !t.getTeacherId().equals(teacherId)) return "not_found";
-        if (t.getEnabled() == 1) return "enabled"; // 已启用，须先停用
+        if (t == null || !t.getTeacherId().equals(teacherId)) return OpStatus.NOT_FOUND;
+        if (t.getEnabled() == 1) return OpStatus.ENABLED; // 已启用，须先停用
         LocalTime st = LocalTime.parse(start);
         LocalTime et = LocalTime.parse(end);
-        if (!st.isBefore(et)) return "bad_time";
+        if (!st.isBefore(et)) return OpStatus.BAD_TIME;
         t.setStartTime(st);
         t.setEndTime(et);
         templateMapper.updateById(t);
-        return "ok";
+        return OpStatus.OK;
     }
 
     // 是否存在同老师、同星期、时间段重叠且已启用的其他模板

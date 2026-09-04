@@ -10,8 +10,8 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.jdbc.Sql;
-import org.springframework.transaction.annotation.Transactional;
 
+import com.bookmate.common.OpStatus;
 import com.bookmate.dto.SlotView;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -53,8 +53,8 @@ class TeacherServiceIntegrationTest {
         future.setStatus(1);
         bookingMapper.insert(future);
 
-        String r = teacherService.completeBooking(TEACHER_ID, future.getId());
-        assertEquals("not_time", r);
+        OpStatus r = teacherService.completeBooking(TEACHER_ID, future.getId());
+        assertEquals(OpStatus.NOT_TIME, r);
         // 状态应保持已确认，未变成已完成
         Booking after = bookingMapper.selectById(future.getId());
         assertEquals(1, after.getStatus());
@@ -72,8 +72,8 @@ class TeacherServiceIntegrationTest {
         past.setStatus(1);
         bookingMapper.insert(past);
 
-        String r = teacherService.completeBooking(TEACHER_ID, past.getId());
-        assertEquals("ok", r);
+        OpStatus r = teacherService.completeBooking(TEACHER_ID, past.getId());
+        assertEquals(OpStatus.OK, r);
         Booking after = bookingMapper.selectById(past.getId());
         assertEquals(2, after.getStatus());
     }
@@ -94,8 +94,8 @@ class TeacherServiceIntegrationTest {
 
     @Test
     void addTemplate_结束时间不晚于开始应返回bad_time且不插入() {
-        String r = teacherService.addTemplate(TEACHER_ID, 5, "20:00", "19:00", 1L);
-        assertEquals("bad_time", r);
+        OpStatus r = teacherService.addTemplate(TEACHER_ID, 5, "20:00", "19:00", 1L);
+        assertEquals(OpStatus.BAD_TIME, r);
         // 不应有任何周五 20:00 起始的模板被插入
         Long cnt = templateMapper.selectCount(new LambdaQueryWrapper<TimeslotTemplate>()
                 .eq(TimeslotTemplate::getTeacherId, TEACHER_ID)
@@ -103,35 +103,35 @@ class TeacherServiceIntegrationTest {
                 .eq(TimeslotTemplate::getStartTime, LocalTime.of(20, 0)));
         assertEquals(0L, cnt);
         // 相同值（如 20:00-20:00）同样拒绝
-        String r2 = teacherService.addTemplate(TEACHER_ID, 5, "20:00", "20:00", 1L);
-        assertEquals("bad_time", r2);
+        OpStatus r2 = teacherService.addTemplate(TEACHER_ID, 5, "20:00", "20:00", 1L);
+        assertEquals(OpStatus.BAD_TIME, r2);
     }
 
     @Test
     void updateTemplate_onlyDisabledEditable_rejectsEnabledAndBadTime() {
         // test-data 里模板1(周一 18-19)、模板2(周一 18-20)均停用
         // 1) 停用模板可改时间
-        assertEquals("ok", teacherService.updateTemplate(TEACHER_ID, 1L, "09:00", "10:00"));
+        assertEquals(OpStatus.OK, teacherService.updateTemplate(TEACHER_ID, 1L, "09:00", "10:00"));
         TimeslotTemplate up = templateMapper.selectById(1L);
         assertEquals(LocalTime.of(9, 0), up.getStartTime());
         assertEquals(LocalTime.of(10, 0), up.getEndTime());
         // 2) 启用后改时间被拒（模板2仍停用，9-10 不与之重叠，可启用）
-        assertEquals("ok", teacherService.toggleTemplate(1L));
-        assertEquals("enabled", teacherService.updateTemplate(TEACHER_ID, 1L, "11:00", "12:00"));
+        assertEquals(OpStatus.OK, teacherService.toggleTemplate(1L));
+        assertEquals(OpStatus.ENABLED, teacherService.updateTemplate(TEACHER_ID, 1L, "11:00", "12:00"));
         // 3) 倒序被拒（先停用再改）
-        assertEquals("ok", teacherService.toggleTemplate(1L));
-        assertEquals("bad_time", teacherService.updateTemplate(TEACHER_ID, 1L, "20:00", "19:00"));
+        assertEquals(OpStatus.OK, teacherService.toggleTemplate(1L));
+        assertEquals(OpStatus.BAD_TIME, teacherService.updateTemplate(TEACHER_ID, 1L, "20:00", "19:00"));
         // 4) 非本人模板
-        assertEquals("not_found", teacherService.updateTemplate(99L, 1L, "09:00", "10:00"));
+        assertEquals(OpStatus.NOT_FOUND, teacherService.updateTemplate(99L, 1L, "09:00", "10:00"));
     }
 
     @Test
     void toggleTemplate_启用重叠模板返回conflict() {
         // test-data.sql 里模板1(18-19)和模板2(18-20)都停用且同天(周一)重叠
         // 先启用模板1
-        assertEquals("ok", teacherService.toggleTemplate(1L));
+        assertEquals(OpStatus.OK, teacherService.toggleTemplate(1L));
         // 再启用重叠的模板2，应返回 conflict
-        assertEquals("conflict", teacherService.toggleTemplate(2L));
+        assertEquals(OpStatus.CONFLICT, teacherService.toggleTemplate(2L));
         // 模板2应保持停用
         assertEquals(0, templateMapper.selectById(2L).getEnabled());
     }
@@ -139,9 +139,9 @@ class TeacherServiceIntegrationTest {
     @Test
     void toggleTemplate_停用操作不受重叠限制() {
         // 启用模板1
-        assertEquals("ok", teacherService.toggleTemplate(1L));
+        assertEquals(OpStatus.OK, teacherService.toggleTemplate(1L));
         // 停用模板1（enable=false），应 ok
-        assertEquals("ok", teacherService.toggleTemplate(1L));
+        assertEquals(OpStatus.OK, teacherService.toggleTemplate(1L));
         assertEquals(0, templateMapper.selectById(1L).getEnabled());
     }
 

@@ -4,7 +4,6 @@ import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.bookmate.entity.*;
 import com.bookmate.mapper.*;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
 
 import java.util.*;
 import java.util.stream.Collectors;
@@ -15,12 +14,12 @@ public class AdminService {
     private final UserMapper userMapper;
     private final BookingMapper bookingMapper;
     private final SubjectMapper subjectMapper;
-    private final TeacherSubjectMapper teacherSubjectMapper;
+    private final SubjectService subjectService;
 
     public AdminService(TeacherProfileMapper t, UserMapper u, BookingMapper b,
-                        SubjectMapper s, TeacherSubjectMapper ts) {
+                        SubjectMapper s, SubjectService ss) {
         this.teacherMapper = t; this.userMapper = u; this.bookingMapper = b;
-        this.subjectMapper = s; this.teacherSubjectMapper = ts;
+        this.subjectMapper = s; this.subjectService = ss;
     }
 
     // 判断某用户是否指定角色（1学员2老师3管理员）
@@ -34,15 +33,11 @@ public class AdminService {
         LambdaQueryWrapper<TeacherProfile> q = new LambdaQueryWrapper<>();
         if (auditStatus != null) q.eq(TeacherProfile::getAuditStatus, auditStatus);
         List<TeacherProfile> tps = teacherMapper.selectList(q.orderByDesc(TeacherProfile::getId));
-        Map<Long, Subject> subjById = subjectMapper.selectList(null).stream()
-                .collect(Collectors.toMap(Subject::getId, s -> s));
         List<Map<String, Object>> out = new ArrayList<>();
         for (TeacherProfile tp : tps) {
             User u = userMapper.selectById(tp.getUserId());
-            List<TeacherSubject> tss = teacherSubjectMapper.selectList(
-                    new LambdaQueryWrapper<TeacherSubject>().eq(TeacherSubject::getTeacherId, tp.getUserId()));
-            String subs = tss.stream().map(ts -> subjById.get(ts.getSubjectId()))
-                    .filter(Objects::nonNull).map(Subject::getName).collect(Collectors.joining("、"));
+            String subs = subjectService.ofTeacher(tp.getUserId()).stream()
+                    .map(Subject::getName).collect(Collectors.joining("、"));
             Map<String, Object> m = new LinkedHashMap<>();
             m.put("userId", tp.getUserId());
             m.put("name", u != null ? u.getName() : "");
@@ -87,8 +82,7 @@ public class AdminService {
         m.put("leaves", leaves);
 
         // 按科目统计预约
-        Map<Long, Subject> subjById = subjectMapper.selectList(null).stream()
-                .collect(Collectors.toMap(Subject::getId, s -> s));
+        Map<Long, Subject> subjById = subjectService.allById();
         List<Booking> all = bookingMapper.selectList(null);
         Map<String, Long> bySubject = all.stream()
                 .filter(b -> b.getSubjectId() != null)

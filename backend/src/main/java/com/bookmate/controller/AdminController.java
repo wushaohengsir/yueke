@@ -1,15 +1,15 @@
 package com.bookmate.controller;
 
+import com.bookmate.common.AppTime;
+import com.bookmate.common.AuthHelper;
 import com.bookmate.common.Result;
 import com.bookmate.service.AdminService;
 import com.bookmate.service.BookingService;
-import com.bookmate.util.JwtUtil;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.web.bind.annotation.*;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
-import java.time.ZoneId;
 import java.util.Map;
 
 @RestController
@@ -17,17 +17,12 @@ import java.util.Map;
 public class AdminController {
     private final AdminService adminService;
     private final BookingService bookingService;
-    private final JwtUtil jwtUtil;
+    private final AuthHelper auth;
 
-    public AdminController(AdminService a, BookingService b, JwtUtil j) {
+    public AdminController(AdminService a, BookingService b, AuthHelper auth) {
         this.adminService = a;
         this.bookingService = b;
-        this.jwtUtil = j;
-    }
-
-    private long currentUserId(String auth) {
-        String token = auth != null && auth.startsWith("Bearer ") ? auth.substring(7) : auth;
-        return jwtUtil.parseUserId(token);
+        this.auth = auth;
     }
 
     // 老师列表（可按审核状态过滤：0待审1通过2驳回）
@@ -38,8 +33,7 @@ public class AdminController {
 
     // 审核老师
     @PostMapping("/teachers/{userId}/audit")
-    public Result<?> audit(@RequestHeader("Authorization") String auth,
-                           @PathVariable long userId, @RequestBody Map<String, Object> body) {
+    public Result<?> audit(@PathVariable long userId, @RequestBody Map<String, Object> body) {
         boolean approve = Boolean.parseBoolean(String.valueOf(body.get("approve")));
         boolean ok = adminService.auditTeacher(userId, approve);
         return ok ? Result.ok(true) : Result.fail(400, "审核失败（仅待审核状态可操作）");
@@ -81,25 +75,15 @@ public class AdminController {
         return ok ? Result.ok(true) : Result.fail(400, "科目已存在");
     }
 
-    // ===== 管理员排课：代学生预约未来课程（仅 role=3 可调）=====
-
-    private boolean isAdmin(String auth) {
-        try {
-            String token = auth != null && auth.startsWith("Bearer ") ? auth.substring(7) : auth;
-            Integer role = jwtUtil.parseRole(token);
-            return role != null && role == 3;
-        } catch (Exception e) {
-            return false;
-        }
-    }
+    // ===== 管理员排课：代学生预约未来课程（仅管理员可调）=====
 
     // 某老师某日期的开放时段（按启用模板 + 该日星期匹配）
     @GetMapping("/plan/slots")
-    public Result<?> planSlots(@RequestHeader("Authorization") String auth,
+    public Result<?> planSlots(@RequestHeader("Authorization") String authHeader,
                                @RequestParam long teacherId,
                                @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate date) {
-        if (!isAdmin(auth)) return Result.fail(403, "无权访问");
-        if (date.isBefore(LocalDate.now(ZoneId.of("Asia/Shanghai")))) {
+        if (!auth.hasRole(authHeader, AuthHelper.ROLE_ADMIN)) return Result.fail(403, "无权访问");
+        if (date.isBefore(AppTime.today())) {
             return Result.fail(400, "只能安排今天及以后的课程");
         }
         return Result.ok(bookingService.generateSlotsOn(teacherId, date));
@@ -107,14 +91,14 @@ public class AdminController {
 
     // 管理员为指定学员预约指定老师某时段（时段须在该老师启用模板内）
     @PostMapping("/plan/book")
-    public Result<?> planBook(@RequestHeader("Authorization") String auth, @RequestBody Map<String, Object> body) {
-        if (!isAdmin(auth)) return Result.fail(403, "无权访问");
+    public Result<?> planBook(@RequestHeader("Authorization") String authHeader, @RequestBody Map<String, Object> body) {
+        if (!auth.hasRole(authHeader, AuthHelper.ROLE_ADMIN)) return Result.fail(403, "无权访问");
         long studentId = Long.parseLong(String.valueOf(body.get("studentId")));
         long teacherId = Long.parseLong(String.valueOf(body.get("teacherId")));
         LocalDateTime start = LocalDateTime.parse(String.valueOf(body.get("startAt")));
         LocalDateTime end = LocalDateTime.parse(String.valueOf(body.get("endAt")));
-        if (!adminService.isUserRole(studentId, 1)) return Result.fail(400, "请选择学员账号");
-        if (start.isBefore(LocalDateTime.now(ZoneId.of("Asia/Shanghai")))) {
+        if (!adminService.isUserRole(studentId, AuthHelper.ROLE_STUDENT)) return Result.fail(400, "请选择学员账号");
+        if (start.isBefore(AppTime.now())) {
             return Result.fail(400, "只能安排尚未开始的时段");
         }
         if (!bookingService.isOpenTemplateSlot(teacherId, start, end)) {
