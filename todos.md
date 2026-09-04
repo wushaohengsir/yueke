@@ -22,4 +22,4 @@
 
 ## 部署
 - [ ] R13 Docker Compose（nginx+springboot+mysql）
-- [ ] R14 每日 prompts/ 导出与 daily/ 日报提交
+- [x] R14 每日 prompts/ 导出与 daily/ 日报提交
