@@ -3,6 +3,7 @@ import { ref, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAuthStore } from '../stores/auth'
 import { http } from '../api/http'
+import heroImg from '../assets/kazuha-hero.jpg'
 
 const router = useRouter()
 const auth = useAuthStore()
@@ -47,10 +48,13 @@ async function submit() {
 </script>
 
 <template>
-  <div class="page" style="padding-top:50px">
-    <div class="banner">
-      <h1>通用师生约课平台</h1>
-      <p>找好老师，约好每一课</p>
+  <div class="page" style="padding-top:24px">
+    <div class="hero-art">
+      <img :src="heroImg" alt="枫叶剪影" />
+      <div class="hero-title">
+        <h1>通用师生约课平台</h1>
+        <p>深山踏红叶 · 好课待人归</p>
+      </div>
     </div>
 
     <!-- 第一步：选择身份 -->

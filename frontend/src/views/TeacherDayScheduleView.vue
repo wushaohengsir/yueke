@@ -10,8 +10,8 @@ const auth = useAuthStore()
 
 const date = String(route.params.date) // yyyy-MM-dd
 const day = ref<any>(null)
-const scheduleStatus = { free: '未预约', booked: '已预约', completed: '已完成' }
-const scheduleClass = { free: 's3', booked: 's1', completed: 's2' }
+const scheduleStatus: Record<string, string> = { free: '未预约', booked: '已预约', completed: '已完成' }
+const scheduleClass: Record<string, string> = { free: 's3', booked: 's1', completed: 's2' }
 const wdLabel = ['周一', '周二', '周三', '周四', '周五', '周六', '周日']
 
 // 根据日期反推 weekOffset（该日期所在周相对本周的偏移）

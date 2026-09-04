@@ -33,7 +33,7 @@ function go(to: string) {
   <div class="page">
     <div class="banner">
       <h1>通用师生约课平台</h1>
-      <p>找好老师，约好每一课</p>
+      <p>红叶有信 · 好课有约</p>
     </div>
 
     <!-- 分课程课时（不通用） -->

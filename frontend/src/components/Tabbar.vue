@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { useRoute } from 'vue-router'
+import MapleLeaf from './MapleLeaf.vue'
 const route = useRoute()
 const tabs = [
   { to: '/', label: '首页' },
@@ -12,6 +13,7 @@ const tabs = [
 <template>
   <nav class="tabbar">
     <router-link v-for="t in tabs" :key="t.to" :to="t.to" :class="{ on: route.path === t.to }">
+      <MapleLeaf class="tab-ic" :size="18" />
       {{ t.label }}
     </router-link>
   </nav>
