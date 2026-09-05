@@ -22,7 +22,6 @@ onMounted(async () => { bookings.value = await api.listBookings() })
     <div class="card">
       <div class="timeline">
         <div v-for="b in bookings" :key="b.id" style="position:relative;margin-bottom:18px">
-          <span class="dot" :style="`background:${BOOKING_STATUS[b.status]?.dot}`"></span>
           <div class="row">
             <b>{{ mdHm(b.startAt) }} · {{ b.teacherName }}</b>
             <span class="st" :class="BOOKING_STATUS[b.status]?.cls">{{ BOOKING_STATUS[b.status]?.text }}</span>
