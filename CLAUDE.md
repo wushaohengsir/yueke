@@ -100,7 +100,21 @@ yueke/
 ## 需求文档与日志同步
 
 - **需求文档更新**：在原有飞书文档中直接修订；收到用户发来的飞书链接后，以该链接为最新需求基线，同步更新 `docs/` 本地文档与 `todos.md`
-- **日志同步飞书**：每次项目更新，把本次更新日志同步推送到飞书并留存，保证飞书侧与仓库侧进度一致
+- **日志同步飞书**：每次项目更新，把本次更新日志同步推送到飞书并留存，保证飞书侧与仓库侧进度一致（工具：`lark-cli docs +update --command append`，追加到开发日志 docx）
+
+## 云服务器同步（每次功能更新必做，收尾项之一）
+
+代码 commit + 双源 push 后，凡改动前端/后端，**必须同步部署上线**，保证线上（公网 http://146.56.247.172，腾讯云）与仓库一致：
+
+1. **打包后端**：`backend/` 下 `mvn package -DskipTests`，产物 `target/backend-0.1.0.jar`
+2. **构建前端**：`frontend/` 下 `npm run build`，产物 `dist/`
+3. **上传并重建**（服务器 `ubuntu@146.56.247.172`，SSH 密钥 `cjt.pem`——置于仓库外、勿提交；compose 项目在服务器 `~/bookmate/`）：
+   - `scp backend/target/backend-0.1.0.jar` → `~/bookmate/backend/backend-0.1.0.jar`
+   - 重置并上传 `frontend/dist/*` → `~/bookmate/frontend/dist/`
+   - `sudo docker compose build backend frontend && sudo docker compose up -d --remove-orphans backend frontend`
+4. **线上冒烟**：公网 `GET /api/auth/subjects` 返回 `code=0`；`POST /api/auth/login`（未注册手机号）应 `code=400`「尚未注册」——验证新代码生效且**勿在线插入脏数据**
+
+> 数据库结构/演示数据变更时才需要：本地 `mysqldump` 出 `bookmate-dump.sql` 上传，`docker exec -i bookmate-db mysql ... < bookmate-dump.sql`（业务数据在 data 卷持久化，一般不动）。
 
 ## 里程碑
 
