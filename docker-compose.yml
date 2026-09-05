@@ -1,0 +1,47 @@
+# BookMate 生产部署：nginx(前端 + /api 反代) + Spring Boot + MySQL 8
+services:
+  db:
+    image: mysql:8.0
+    container_name: bookmate-db
+    command:
+      - --character-set-server=utf8mb4
+      - --collation-server=utf8mb4_unicode_ci
+      - --innodb-buffer-pool-size=128M
+      - --performance-schema=OFF
+    environment:
+      MYSQL_ALLOW_EMPTY_PASSWORD: "yes"   # 仅内网 compose 网络使用；后端连 root/空
+      MYSQL_DATABASE: yueke
+    volumes:
+      - dbdata:/var/lib/mysql
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-uroot"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+
+  backend:
+    build: ./backend
+    container_name: bookmate-backend
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:mysql://db:3306/yueke?useUnicode=true&characterEncoding=utf8&serverTimezone=Asia/Shanghai
+      SPRING_DATASOURCE_USERNAME: root
+      SPRING_DATASOURCE_PASSWORD: ""
+    ports:
+      - "8080:8080"
+    depends_on:
+      db:
+        condition: service_healthy
+    restart: unless-stopped
+
+  frontend:
+    build: ./frontend
+    container_name: bookmate-frontend
+    ports:
+      - "80:80"
+    depends_on:
+      - backend
+    restart: unless-stopped
+
+volumes:
+  dbdata:

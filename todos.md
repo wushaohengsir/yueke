@@ -25,7 +25,7 @@
 - [ ] R12 公众号（资讯外链）
 
 ## 部署
-- [ ] R13 Docker Compose（nginx+springboot+mysql）← 24320213 本人承担（V1.0 答辩前）
+- [x] R13 Docker Compose（nginx+springboot+mysql）｜2026-09-05 已部署腾讯云 146.56.247.172（nginx 前端+/api 反代 + Spring Boot + MySQL8）
 - [x] R14 每日 prompts/ 导出与 daily/ 日报提交
 
 ## 视觉与架构（D4 补记，24320213 本人提交）
