@@ -43,6 +43,12 @@ public class TeacherController {
         };
     }
 
+    // 待完成提醒：已下课超过 20 分钟仍未登记完成的课时
+    @GetMapping("/pending-completions")
+    public Result<?> pendingCompletions(@RequestHeader("Authorization") String authHeader) {
+        return Result.ok(teacherService.pendingCompletions(auth.userId(authHeader)));
+    }
+
     // 请假列表
     @GetMapping("/leaves")
     public Result<?> leaves(@RequestHeader("Authorization") String authHeader) {

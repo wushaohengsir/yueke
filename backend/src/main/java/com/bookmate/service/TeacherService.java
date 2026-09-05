@@ -9,6 +9,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.time.format.DateTimeFormatter;
 import java.util.*;
@@ -29,19 +30,20 @@ public class TeacherService {
         this.userMapper = u; this.subjectService = ss; this.creditService = cs;
     }
 
-    // ---- 学员提交请假（待审批） ----
+    // ---- 学员提交请假（待审批；已下课的课程不可请假） ----
     @Transactional
-    public boolean submitLeave(long studentId, long bookingId, String reason) {
+    public OpStatus submitLeave(long studentId, long bookingId, String reason) {
         Booking b = bookingMapper.selectById(bookingId);
-        if (b == null || !b.getStudentId().equals(studentId) || b.getStatus() != 1) return false;
+        if (b == null || !b.getStudentId().equals(studentId) || b.getStatus() != 1) return OpStatus.NOT_FOUND;
+        if (!b.getEndAt().isAfter(AppTime.now())) return OpStatus.ENDED; // 已下课/已结束，不可请假
         Long pending = leaveMapper.selectCount(new LambdaQueryWrapper<LeaveRequest>()
                 .eq(LeaveRequest::getBookingId, bookingId).eq(LeaveRequest::getStatus, 0));
-        if (pending != null && pending > 0) return false; // 已有待审批
+        if (pending != null && pending > 0) return OpStatus.NOT_FOUND; // 已有待审批
         LeaveRequest lr = new LeaveRequest();
         lr.setBookingId(bookingId); lr.setStudentId(studentId);
         lr.setReason(reason); lr.setStatus(0);
         leaveMapper.insert(lr);
-        return true;
+        return OpStatus.OK;
     }
 
     // ---- 老师：周课表（按周，含具体日期；过去读真实 booking，未来读模板+booking） ----
@@ -178,6 +180,30 @@ public class TeacherService {
         b.setStatus(2); // 已完成
         bookingMapper.updateById(b);
         return OpStatus.OK;
+    }
+
+    // ---- 老师：待完成提醒 —— 已下课超过 20 分钟仍未登记完成的课时 ----
+    public List<Map<String, Object>> pendingCompletions(long teacherId) {
+        LocalDateTime threshold = AppTime.now().minusMinutes(20); // 下课满 20 分钟仍没点完成的，需要提醒
+        List<Booking> bs = bookingMapper.selectList(new LambdaQueryWrapper<Booking>()
+                .eq(Booking::getTeacherId, teacherId)
+                .eq(Booking::getStatus, 1)                          // 已确认、尚未完成（请假后是 status=4，自动排除）
+                .lt(Booking::getEndAt, threshold)
+                .orderByAsc(Booking::getStartAt));
+        Map<Long, Subject> subjById = subjectService.allById();
+        List<Map<String, Object>> out = new ArrayList<>();
+        for (Booking b : bs) {
+            User stu = userMapper.selectById(b.getStudentId());
+            Map<String, Object> m = new LinkedHashMap<>();
+            m.put("id", b.getId());
+            m.put("startAt", b.getStartAt());
+            m.put("endAt", b.getEndAt());
+            m.put("studentName", stu != null ? stu.getName() : "");
+            Subject subj = b.getSubjectId() != null ? subjById.get(b.getSubjectId()) : null;
+            m.put("subjectName", subj != null ? subj.getName() : "");
+            out.add(m);
+        }
+        return out;
     }
 
     // ---- 老师：请假列表 ----

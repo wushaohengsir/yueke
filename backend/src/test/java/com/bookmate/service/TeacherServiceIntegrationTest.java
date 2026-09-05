@@ -12,6 +12,7 @@ import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.jdbc.Sql;
 
 import com.bookmate.common.OpStatus;
+import com.bookmate.common.OpStatus;
 import com.bookmate.dto.SlotView;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -190,5 +191,42 @@ class TeacherServiceIntegrationTest {
         // 未启用模板(模板2 周一18-20)的时段
         assertFalse(bookingService.isOpenTemplateSlot(TEACHER_ID,
                 LocalDateTime.of(mon, LocalTime.of(18, 0)), LocalDateTime.of(mon, LocalTime.of(20, 0))));
+    }
+
+    // ---- D5：已下课不可请假 / 老师待完成提醒 ----
+    private Booking insertBooking(int status, LocalDateTime start, LocalDateTime end) {
+        Booking b = new Booking();
+        b.setTeacherId(TEACHER_ID); b.setStudentId(2L); b.setSubjectId(1L);
+        b.setStartAt(start); b.setEndAt(end); b.setStatus(status);
+        bookingMapper.insert(b);
+        return b;
+    }
+
+    @Test
+    void submitLeave_已下课课程拒绝_未来课程可请_重复被拒() {
+        LocalDateTime now = LocalDateTime.now(ZoneId.of("Asia/Shanghai"));
+        Booking past = insertBooking(1, now.minusHours(2), now.minusHours(1));
+        assertEquals(OpStatus.ENDED, teacherService.submitLeave(2L, past.getId(), "补假"));
+        Booking future = insertBooking(1, now.plusDays(1).withHour(18), now.plusDays(1).withHour(19));
+        assertEquals(OpStatus.OK, teacherService.submitLeave(2L, future.getId(), "有事"));
+        // 已提交待审批后不可重复提交
+        assertEquals(OpStatus.NOT_FOUND, teacherService.submitLeave(2L, future.getId(), "重复"));
+    }
+
+    @Test
+    void pendingCompletions_仅下课超20分钟未完成() {
+        LocalDateTime now = LocalDateTime.now(ZoneId.of("Asia/Shanghai"));
+        Booking a = insertBooking(1, now.minusMinutes(90), now.minusMinutes(40)); // 下课 40 分钟未完成 -> 提醒
+        Booking b = insertBooking(1, now.minusMinutes(30), now.minusMinutes(5));  // 下课 5 分钟 -> 不提醒
+        Booking c = insertBooking(1, now.minusHours(3), now.minusHours(2));
+        teacherService.completeBooking(TEACHER_ID, c.getId());                    // 已完成 -> 不提醒
+        Booking d = insertBooking(4, now.minusHours(5), now.minusHours(4));       // 已请假(status4) -> 不提醒
+
+        java.util.List<Long> ids = teacherService.pendingCompletions(TEACHER_ID).stream()
+                .map(m -> (Long) m.get("id")).collect(java.util.stream.Collectors.toList());
+        assertTrue(ids.contains(a.getId()));
+        assertFalse(ids.contains(b.getId()));
+        assertFalse(ids.contains(c.getId()));
+        assertFalse(ids.contains(d.getId()));
     }
 }

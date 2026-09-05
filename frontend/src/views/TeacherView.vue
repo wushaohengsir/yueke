@@ -24,9 +24,15 @@ const dayTemplates = computed(() => templates.value.filter((t: any) => t.weekday
 const weekOffset = ref(0)
 const weekSchedule = ref<any>({ weekStart: '', days: [] })
 
+// 待完成提醒：已下课超 20 分钟未登记完成的课时（老师端横幅）
+const pending = ref<any[]>([])
+async function loadPending() {
+  pending.value = await api.getPendingCompletions()
+}
 async function load() {
   leaves.value = await api.getTeacherLeaves()
   templates.value = await api.getTemplates()
+  await loadPending()
   await loadWeekSchedule()
 }
 async function loadWeekSchedule() {
@@ -104,6 +110,16 @@ async function addTpl() {
       <button class="tag" :style="tab==='schedule'?'background:var(--sun)':''" @click="tab='schedule'">周课表</button>
       <button class="tag" :style="tab==='leave'?'background:var(--sun)':''" @click="tab='leave'">请假审批</button>
       <button class="tag" :style="tab==='template'?'background:var(--sun)':''" @click="tab='template'">时段模板</button>
+    </div>
+
+    <!-- 已下课超 20 分钟仍未登记完成的提醒 -->
+    <div v-if="pending.length" class="card mt" style="border-color:var(--coral)">
+      <b style="color:var(--coral)">提醒：{{ pending.length }} 节课已结束但未登记完成</b>
+      <div v-for="p in pending" :key="p.id" class="row mt">
+        <span>{{ range(p.startAt, p.endAt) }} · {{ p.studentName }} · {{ p.subjectName }}</span>
+        <button class="btn small" @click="complete(p.id)">登记完成</button>
+      </div>
+      <p class="muted" style="margin:6px 0 0">上课结束后 20 分钟内未点「登记完成」，系统会在此提醒老师。</p>
     </div>
 
     <!-- 周课表：周翻页 + 7 天概览 -->

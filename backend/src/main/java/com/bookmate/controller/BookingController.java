@@ -1,6 +1,7 @@
 package com.bookmate.controller;
 
 import com.bookmate.common.AuthHelper;
+import com.bookmate.common.OpStatus;
 import com.bookmate.common.Result;
 import com.bookmate.service.BookingService;
 import com.bookmate.service.CreditService;
@@ -63,7 +64,11 @@ public class BookingController {
         long student = auth.userId(authHeader);
         long bookingId = Long.parseLong(String.valueOf(body.get("bookingId")));
         String reason = String.valueOf(body.getOrDefault("reason", ""));
-        boolean ok = teacherService.submitLeave(student, bookingId, reason);
-        return ok ? Result.ok(true) : Result.fail(400, "请假提交失败（仅已确认课时可请假，且不可重复提交）");
+        OpStatus r = teacherService.submitLeave(student, bookingId, reason);
+        return switch (r) {
+            case OK -> Result.ok(true);
+            case ENDED -> Result.fail(400, "该课程已下课，无法请假");
+            default -> Result.fail(400, "请假提交失败（仅未下课的已确认课时可请假，且不可重复提交）");
+        };
     }
 }

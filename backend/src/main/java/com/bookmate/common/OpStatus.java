@@ -8,6 +8,7 @@ public enum OpStatus {
     OK,
     NOT_FOUND,   // 资源不存在或非本人资源
     NOT_TIME,    // 课程尚未结束，不可登记完成
+    ENDED,       // 课程已下课/已结束，不可再请假
     BAD_TIME,    // 结束时间未晚于开始时间
     CONFLICT,    // 与已启用模板时间重叠
     ENABLED      // 模板已启用，须先停用

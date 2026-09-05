@@ -98,6 +98,9 @@ export const api = {
   async getTeacherLeaves(): Promise<any[]> {
     return call<any[]>(http.get('/api/teacher/leaves'))
   },
+  async getPendingCompletions(): Promise<any[]> {
+    return call<any[]>(http.get('/api/teacher/pending-completions'))
+  },
   async handleLeave(id: number, approve: boolean) {
     return attempt(http.post(`/api/teacher/leaves/${id}/handle`, { approve }))
   },
