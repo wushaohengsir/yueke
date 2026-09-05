@@ -120,12 +120,6 @@ body {
   -webkit-mask: var(--leaf-icon) center / contain no-repeat;
   mask: var(--leaf-icon) center / contain no-repeat;
 }
-.grid .item.core {
-  background: linear-gradient(150deg, #d2503a, var(--maple-deep));
-  border-color: transparent; color: #fff6ea;
-  box-shadow: 0 8px 18px rgba(176, 52, 35, 0.32);
-}
-.grid .item.core .ic { background: #f3dfb8; }
 
 /* banner：红枫画卷 */
 .banner {
@@ -199,6 +193,47 @@ body {
 .tabbar a .tab-ic { opacity: 0.45; transition: opacity 0.2s; }
 .tabbar a.on { color: var(--maple); }
 .tabbar a.on .tab-ic { opacity: 1; }
+
+/* 统一悬停反馈：鼠标点到哪个可点控件，哪个亮起枫叶（不再让「约课」特殊） */
+.btn, .grid .item, .slot, .tabbar a {
+  -webkit-tap-highlight-color: transparent;
+}
+.btn { position: relative; }
+.btn:hover:not(:disabled) { filter: brightness(1.05); }
+.btn.ghost:hover:not(:disabled) { background: var(--maple-soft); color: var(--maple-deep); box-shadow: none; }
+.btn::after {
+  content: ''; position: absolute; width: 18px; height: 18px; right: 20px; top: 50%; margin-top: -9px;
+  background: #f6e3b4;
+  -webkit-mask: var(--leaf-icon) center / contain no-repeat;
+  mask: var(--leaf-icon) center / contain no-repeat;
+  opacity: 0; transform: translateY(8px) scale(.5) rotate(-24deg);
+  transition: opacity .16s ease, transform .22s ease;
+  pointer-events: none;
+}
+.btn:hover:not(:disabled)::after,
+.btn:focus-visible::after { opacity: .95; transform: translateY(0) scale(1) rotate(0deg); }
+.btn:disabled { cursor: not-allowed; }
+.btn:disabled::after { display: none; }
+.btn.small::after, .btn.ghost::after, .btn.teal::after { display: none; }
+
+.grid .item, .grid .item .ic { transition: transform .16s ease, box-shadow .16s ease, border-color .16s ease, color .16s ease, background-color .16s ease; }
+.grid .item:hover {
+  border-color: var(--gold); color: var(--maple-deep);
+  transform: translateY(-2px); box-shadow: 0 10px 20px rgba(176, 52, 35, 0.16);
+}
+.grid .item:hover .ic { background: var(--maple); transform: scale(1.16) rotate(-10deg); }
+.grid .item:active { transform: scale(.96); }
+
+.slot { transition: transform .14s ease, box-shadow .14s ease, border-color .14s ease; }
+.slot:hover:not(.booked):not(.selected) {
+  border-color: var(--gold); transform: translateY(-1px);
+  box-shadow: 0 6px 14px rgba(176, 52, 35, 0.12);
+}
+
+.tabbar a { transition: color .16s ease; }
+.tabbar a .tab-ic { transition: transform .16s ease, opacity .16s ease; }
+.tabbar a:hover:not(.on) { color: var(--maple); }
+.tabbar a:hover .tab-ic { opacity: 1; transform: scale(1.12); }
 
 .muted { color: var(--ink-soft); font-size: 13px; }
 .row { display: flex; justify-content: space-between; align-items: center; }

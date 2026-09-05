@@ -14,7 +14,7 @@ onMounted(async () => {
 })
 
 const items = [
-  { label: '约课', to: '/book', core: true },
+  { label: '约课', to: '/book' },
   { label: '请假', to: '/leave' },
   { label: '历史记录', to: '/history' },
   { label: '我的信息', to: '/mine' },
@@ -46,7 +46,7 @@ function go(to: string) {
     </div>
 
     <div class="grid">
-      <div v-for="it in items" :key="it.label" class="item" :class="{ core: it.core }" @click="go(it.to)">
+      <div v-for="it in items" :key="it.label" class="item" @click="go(it.to)">
         <span class="ic"></span>{{ it.label }}
       </div>
     </div>
