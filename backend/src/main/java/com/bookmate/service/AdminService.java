@@ -3,7 +3,9 @@ package com.bookmate.service;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.bookmate.entity.*;
 import com.bookmate.mapper.*;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.util.*;
 import java.util.stream.Collectors;
@@ -15,11 +17,15 @@ public class AdminService {
     private final BookingMapper bookingMapper;
     private final SubjectMapper subjectMapper;
     private final SubjectService subjectService;
+    private final StudentProfileMapper studentProfileMapper;
+    private final PasswordEncoder encoder;
 
     public AdminService(TeacherProfileMapper t, UserMapper u, BookingMapper b,
-                        SubjectMapper s, SubjectService ss) {
+                        SubjectMapper s, SubjectService ss,
+                        StudentProfileMapper sp, PasswordEncoder e) {
         this.teacherMapper = t; this.userMapper = u; this.bookingMapper = b;
         this.subjectMapper = s; this.subjectService = ss;
+        this.studentProfileMapper = sp; this.encoder = e;
     }
 
     // 判断某用户是否指定角色（1学员2老师3管理员）
@@ -51,13 +57,40 @@ public class AdminService {
         return out;
     }
 
-    // ---- 审核老师 ----
+    // ---- 审核老师：待审可通过/驳回；已驳回可再通过、已通过可再驳回（误判可纠正，老师无需重注） ----
     public boolean auditTeacher(long teacherUserId, boolean approve) {
         TeacherProfile tp = teacherMapper.selectOne(new LambdaQueryWrapper<TeacherProfile>()
                 .eq(TeacherProfile::getUserId, teacherUserId));
-        if (tp == null || tp.getAuditStatus() != 0) return false;
-        tp.setAuditStatus(approve ? 1 : 2);
+        if (tp == null) return false;
+        int target = approve ? 1 : 2;
+        if (tp.getAuditStatus() != null && tp.getAuditStatus().intValue() == target) return false; // 状态未变
+        tp.setAuditStatus(target);
         teacherMapper.updateById(tp);
+        return true;
+    }
+
+    /**
+     * 管理员创建账号：仅限学员(1)/管理员(3)（老师走公开注册 + 审核闭环）。
+     * 调用前已校验角色/字段完整性，返回 false 表示手机号已存在（uk_phone 冲突）。
+     */
+    @Transactional
+    public boolean createUser(int role, String name, String phone, String password) {
+        Long exists = userMapper.selectCount(new LambdaQueryWrapper<User>().eq(User::getPhone, phone));
+        if (exists != null && exists > 0) return false;
+        User u = new User();
+        u.setRole(role);
+        u.setName(name.trim());
+        u.setPhone(phone);
+        u.setStatus(1);
+        u.setPasswordHash(encoder.encode(password));
+        userMapper.insert(u);
+        if (role == 1) { // 学员同步建档（课时/预约外键依赖）
+            StudentProfile sp = new StudentProfile();
+            sp.setUserId(u.getId());
+            sp.setCreditsTotal(0);
+            sp.setCreditsUsed(0);
+            studentProfileMapper.insert(sp);
+        }
         return true;
     }
 

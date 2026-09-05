@@ -29,9 +29,8 @@ export const useAuthStore = defineStore('auth', () => {
     else sessionStorage.removeItem(STORAGE_KEY)
   }
 
-  async function login(phone: string, password: string, role: 'student' | 'teacher' | 'admin',
-                       subjectId?: number | null, name?: string) {
-    const u = await api.login(phone, password, role, subjectId, name)
+  async function login(phone: string, password: string, role: 'student' | 'teacher' | 'admin') {
+    const u = await api.login(phone, password, role)
     user.value = u
     persist()
     return u

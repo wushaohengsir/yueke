@@ -5,6 +5,7 @@ const router = createRouter({
   history: createWebHistory(),
   routes: [
     { path: '/login', name: 'login', component: () => import('../views/LoginView.vue') },
+    { path: '/register', name: 'register', component: () => import('../views/RegisterView.vue') },
     { path: '/', name: 'home', component: () => import('../views/HomeView.vue'), meta: { auth: true } },
     { path: '/book', name: 'book', component: () => import('../views/BookingListView.vue'), meta: { guest: true } },
     { path: '/book/:id', name: 'book-detail', component: () => import('../views/BookingDetailView.vue'), meta: { auth: true } },

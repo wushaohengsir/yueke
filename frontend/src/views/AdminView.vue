@@ -42,6 +42,32 @@ async function toggleUser(id: number, enable: boolean) {
   await api.toggleUser(id, enable)
   await loadUsers()
 }
+// 新建账号（管理员建学员/管理员；老师须公开注册+审核）
+const newUser = ref<{ role: 'student' | 'admin'; name: string; phone: string; password: string }>({
+  role: 'student', name: '', phone: '', password: '',
+})
+const newUserMsg = ref('')
+const ROLE_CREATE_OPTIONS = [
+  { value: 'student', text: '学员' },
+  { value: 'admin', text: '管理员' },
+]
+async function createUser() {
+  if (!newUser.value.name.trim() || !/^\d{6,20}$/.test(newUser.value.phone) || newUser.value.password.length < 6) {
+    newUserMsg.value = '请完整填写姓名与手机号，且密码至少 6 位'
+    return
+  }
+  const r = await api.adminCreateUser({
+    role: newUser.value.role,
+    name: newUser.value.name.trim(),
+    phone: newUser.value.phone,
+    password: newUser.value.password,
+  })
+  newUserMsg.value = r.ok ? `✓ 已创建「${newUser.value.name.trim()}」` : '✗ ' + (r.msg || '创建失败')
+  if (r.ok) {
+    newUser.value = { role: 'student', name: '', phone: '', password: '' }
+    await loadUsers()
+  }
+}
 function setUserFilter(r: number | null) {
   userRoleFilter.value = r
   loadUsers()
@@ -183,20 +209,37 @@ async function removeBlock(id: number) {
           <span class="st" :class="AUDIT_STATUS[t.auditStatus]?.cls">{{ AUDIT_STATUS[t.auditStatus]?.text }}</span>
         </div>
         <p class="muted" style="margin:6px 0">{{ t.phone }} · {{ t.title }} · {{ t.subjects }}</p>
-        <div class="row" v-if="t.auditStatus===0">
-          <button class="btn small" @click="audit(t.userId, true)">通过</button>
-          <button class="btn ghost small" @click="audit(t.userId, false)">驳回</button>
+        <div class="row" style="margin-top:8px">
+          <button class="btn small" v-if="t.auditStatus!==1" @click="audit(t.userId, true)">通过</button>
+          <button class="btn ghost small" v-if="t.auditStatus!==2" @click="audit(t.userId, false)">驳回</button>
         </div>
+        <p class="muted" v-if="t.auditStatus!==0" style="margin:6px 0 0">已驳回/已通过均可在此改回，无需老师重新注册</p>
       </div>
       <p class="muted" v-if="!teachers.length">暂无老师</p>
     </div>
 
     <!-- 用户管理 -->
     <div v-if="tab==='users'">
+      <div class="card">
+        <b>新建账号</b>
+        <p class="muted" style="margin:6px 0 10px">公开注册只对学员/老师开放；管理员账号由在任管理员在此开通（老师请走注册→审核，不由后台直建）。</p>
+        <select class="input" v-model="newUser.role">
+          <option v-for="o in ROLE_CREATE_OPTIONS" :key="o.value" :value="o.value">{{ o.text }}</option>
+        </select>
+        <div class="row mt">
+          <input class="input" style="margin:0" v-model="newUser.name" placeholder="姓名" />
+          <input class="input" style="margin:0" v-model="newUser.phone" placeholder="手机号" />
+        </div>
+        <input class="input" v-model="newUser.password" type="password" placeholder="密码（至少 6 位）" />
+        <p class="muted" v-if="newUserMsg" style="margin:0 0 8px">{{ newUserMsg }}</p>
+        <button class="btn" @click="createUser">创建账号</button>
+      </div>
+
       <div style="display:flex;gap:8px;margin-bottom:10px">
         <button class="tag" :style="userRoleFilter===null?'background:var(--sun)':''" @click="setUserFilter(null)">全部</button>
         <button class="tag" :style="userRoleFilter===1?'background:var(--sun)':''" @click="setUserFilter(1)">学员</button>
         <button class="tag" :style="userRoleFilter===2?'background:var(--sun)':''" @click="setUserFilter(2)">老师</button>
+        <button class="tag" :style="userRoleFilter===3?'background:var(--sun)':''" @click="setUserFilter(3)">管理员</button>
       </div>
       <div class="card" v-for="u in users" :key="u.id">
         <div class="row">

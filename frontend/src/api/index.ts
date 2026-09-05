@@ -25,16 +25,36 @@ async function attempt(p: Promise<any>): Promise<{ ok: boolean; msg?: string }> 
 interface RawTeacher { id: number; name: string; title: string; intro: string; rating: number; subjects: string[] }
 
 export const api = {
-  async login(phone: string, password: string, role: 'student' | 'teacher' | 'admin',
-              subjectId?: number | null, name?: string): Promise<User> {
+  /** 登录（纯登录：未注册手机号会被后端拒绝；老师未过审也会被拒） */
+  async login(phone: string, password: string, role: 'student' | 'teacher' | 'admin'): Promise<User> {
     const roleNum = role === 'student' ? 1 : role === 'teacher' ? 2 : 3
-    const data = await call<any>(http.post('/api/auth/login', {
-      phone, password, role: roleNum,
-      subjectId: subjectId ?? undefined,
-      name: name || undefined,
-    }))
+    const data = await call<any>(http.post('/api/auth/login', { phone, password, role: roleNum }))
     sessionStorage.setItem('token', data.token)
     return { id: data.userId, role, name: data.name, phone }
+  },
+
+  /**
+   * 注册：仅学员/老师。
+   *  - 学员：成功即自动登录返回 user（已有 token）。
+   *  - 老师：进入待审（pending=true），审核通过前无法登录老师端。
+   */
+  async register(p: {
+    role: 'student' | 'teacher'; name: string; phone: string; password: string; subjectId?: number | null
+  }): Promise<{ ok: boolean; msg?: string; pending?: boolean; user?: User }> {
+    try {
+      const d = await call<any>(http.post('/api/auth/register', {
+        role: p.role === 'student' ? 1 : 2,
+        name: p.name, phone: p.phone, password: p.password,
+        subjectId: p.subjectId ?? undefined,
+      }))
+      if (d.token) {
+        sessionStorage.setItem('token', d.token)
+        return { ok: true, user: { id: d.userId, role: p.role, name: d.name, phone: p.phone } }
+      }
+      return { ok: true, pending: true } // 老师待审：后端不签发 token
+    } catch (e: any) {
+      return { ok: false, msg: e.message }
+    }
   },
 
   /** 科目列表（登录页老师注册用；视图不再直接摸 http） */
@@ -141,6 +161,12 @@ export const api = {
   },
   async toggleUser(id: number, enable: boolean) {
     return attempt(http.post(`/api/admin/users/${id}/toggle`, { enable }))
+  },
+  /** 管理员新建账号（学员/管理员；老师须公开注册+审核） */
+  async adminCreateUser(p: { role: 'student' | 'admin'; name: string; phone: string; password: string }) {
+    return attempt(http.post('/api/admin/users', {
+      role: p.role === 'student' ? 1 : 3, name: p.name, phone: p.phone, password: p.password,
+    }))
   },
   async getAdminSubjects(): Promise<any[]> {
     return call<any[]>(http.get('/api/admin/subjects'))

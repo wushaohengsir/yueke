@@ -1,8 +1,7 @@
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
+import { ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAuthStore } from '../stores/auth'
-import { api } from '../api'
 import heroImg from '../assets/kazuha-hero.jpg'
 
 const router = useRouter()
@@ -13,15 +12,7 @@ const step = ref<'role' | 'login'>('role')
 const role = ref<'student' | 'teacher' | 'admin'>('student')
 const phone = ref('')
 const password = ref('')
-const subjects = ref<{ id: number; name: string }[]>([])
-const subjectId = ref<number | null>(null)
 const err = ref('')
-
-onMounted(async () => {
-  try {
-    subjects.value = await api.listSubjects()
-  } catch { /* 忽略，注册时可重试 */ }
-})
 
 function choose(r: 'student' | 'teacher' | 'admin') {
   role.value = r
@@ -36,9 +27,8 @@ function enterAsGuest() {
 async function submit() {
   if (!phone.value) { err.value = '请输入手机号'; return }
   if (!password.value) { err.value = '请输入密码'; return }
-  if (role.value === 'teacher' && !subjectId.value) { err.value = '老师注册请选择授课科目'; return }
   try {
-    const u = await auth.login(phone.value, password.value, role.value, subjectId.value)
+    const u = await auth.login(phone.value, password.value, role.value)
     router.replace(u.role === 'teacher' ? '/teacher' : u.role === 'admin' ? '/admin' : '/')
   } catch (e: any) {
     err.value = e.message || '登录失败'
@@ -64,6 +54,9 @@ async function submit() {
       <button class="btn mt" @click="choose('teacher')">老师</button>
       <button class="btn mt" @click="choose('admin')">管理员</button>
       <p class="muted mt" style="margin:0">游客可浏览师资介绍，无需登录</p>
+      <p class="mt" style="margin:0;text-align:center">
+        新学员 / 新老师？<a href="#" @click.prevent="router.push('/register')">点此注册</a>
+      </p>
     </div>
 
     <!-- 第二步：登录表单 -->
@@ -73,14 +66,14 @@ async function submit() {
         <a href="#" style="float:right" @click.prevent="step = 'role'">返回</a>
       </p>
       <input class="input" v-model="phone" placeholder="手机号" />
-      <input class="input" v-model="password" type="password" placeholder="密码（新号即注册）" />
-      <select class="input" v-if="role === 'teacher'" v-model.number="subjectId">
-        <option :value="null" disabled>选择授课科目</option>
-        <option v-for="s in subjects" :key="s.id" :value="s.id">{{ s.name }}</option>
-      </select>
-      <p class="muted" v-if="role === 'teacher'" style="margin:0 0 10px">新老师注册后需管理员审核，通过后学员才可见</p>
+      <input class="input" v-model="password" type="password" placeholder="密码" />
+      <p class="muted" v-if="role === 'teacher'" style="margin:0 0 10px">老师账号须管理员审核通过后方可登录</p>
+      <p class="muted" v-else-if="role === 'admin'" style="margin:0 0 10px">管理员账号由平台开通，不开放自助注册</p>
       <p v-if="err" class="muted" style="color:var(--coral)">{{ err }}</p>
-      <button class="btn" @click="submit">登录 / 注册</button>
+      <button class="btn" @click="submit">登录</button>
+      <template v-if="role !== 'admin'">
+        <p class="muted" style="margin:12px 0 0;text-align:center">还没有账号？<a href="#" @click.prevent="router.push('/register')">注册{{ role === 'student' ? '学员' : '老师' }}账号</a></p>
+      </template>
     </div>
   </div>
 </template>

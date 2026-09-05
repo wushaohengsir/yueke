@@ -36,12 +36,12 @@ public class AdminController {
         return Result.ok(adminService.listTeachers(status));
     }
 
-    // 审核老师
+    // 审核老师（待审→通过/驳回；已驳回可改通过、已通过可改驳回，均可纠正）
     @PostMapping("/teachers/{userId}/audit")
     public Result<?> audit(@PathVariable long userId, @RequestBody Map<String, Object> body) {
         boolean approve = Boolean.parseBoolean(String.valueOf(body.get("approve")));
         boolean ok = adminService.auditTeacher(userId, approve);
-        return ok ? Result.ok(true) : Result.fail(400, "审核失败（仅待审核状态可操作）");
+        return ok ? Result.ok(true) : Result.fail(400, "审核失败（老师不存在或已是该状态）");
     }
 
     // 数据看板
@@ -54,6 +54,24 @@ public class AdminController {
     @GetMapping("/users")
     public Result<?> users(@RequestParam(required = false) Integer role) {
         return Result.ok(adminService.listUsers(role));
+    }
+
+    // 用户管理：管理员新建账号（学员/管理员；老师须走公开注册+审核，禁止越权创建）
+    @PostMapping("/users")
+    public Result<?> createUser(@RequestHeader("Authorization") String authHeader, @RequestBody Map<String, Object> body) {
+        if (!auth.hasRole(authHeader, AuthHelper.ROLE_ADMIN)) return Result.fail(403, "无权访问");
+        int role = body.get("role") != null ? Integer.parseInt(String.valueOf(body.get("role"))) : 0;
+        if (role != AuthHelper.ROLE_STUDENT && role != AuthHelper.ROLE_ADMIN) {
+            return Result.fail(400, "仅可新建学员或管理员账号（老师请走公开注册并由管理员审核）");
+        }
+        String name = String.valueOf(body.getOrDefault("name", ""));
+        String phone = String.valueOf(body.getOrDefault("phone", ""));
+        String password = String.valueOf(body.getOrDefault("password", ""));
+        if (name.isBlank() || phone.isBlank() || password.length() < 6) {
+            return Result.fail(400, "请完整填写姓名、手机号，且密码至少 6 位");
+        }
+        boolean ok = adminService.createUser(role, name, phone, password);
+        return ok ? Result.ok(true) : Result.fail(400, "该手机号已存在，无法重复创建");
     }
 
     // 用户管理：禁用/启用
