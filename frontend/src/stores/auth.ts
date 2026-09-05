@@ -45,6 +45,11 @@ export const useAuthStore = defineStore('auth', () => {
     sessionStorage.removeItem('token')
     persist()
   }
+  // 用后端返回的最新资料覆盖本地缓存（如进入「我的」页刷新真实姓名）
+  function refreshUser(u: User) {
+    user.value = u
+    persist()
+  }
 
-  return { user, isLoggedIn, isStudent, isGuest, login, enterAsGuest, logout }
+  return { user, isLoggedIn, isStudent, isGuest, login, enterAsGuest, logout, refreshUser }
 })

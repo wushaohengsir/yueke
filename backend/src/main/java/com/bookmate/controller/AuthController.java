@@ -1,5 +1,6 @@
 package com.bookmate.controller;
 
+import com.bookmate.common.AuthHelper;
 import com.bookmate.common.Result;
 import com.bookmate.service.AuthService;
 import com.bookmate.service.SubjectService;
@@ -12,10 +13,18 @@ import java.util.Map;
 public class AuthController {
     private final AuthService authService;
     private final SubjectService subjectService;
+    private final AuthHelper auth;
 
-    public AuthController(AuthService a, SubjectService s) {
+    public AuthController(AuthService a, SubjectService s, AuthHelper auth) {
         this.authService = a;
         this.subjectService = s;
+        this.auth = auth;
+    }
+
+    // 当前登录用户资料（token 换真实姓名/手机号）
+    @GetMapping("/me")
+    public Result<?> me(@RequestHeader("Authorization") String authHeader) {
+        return Result.ok(authService.me(auth.userId(authHeader)));
     }
 
     @PostMapping("/login")

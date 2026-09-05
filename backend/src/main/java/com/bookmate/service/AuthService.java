@@ -89,4 +89,16 @@ public class AuthService {
         }
         return out;
     }
+
+    // 当前登录用户资料（前端「我的」页按 token 刷新，取后端真实姓名/手机号）
+    public Map<String, Object> me(long userId) {
+        User u = userMapper.selectById(userId);
+        if (u == null) return Map.of();
+        Map<String, Object> out = new LinkedHashMap<>();
+        out.put("userId", u.getId());
+        out.put("role", u.getRole());
+        out.put("name", u.getName());
+        out.put("phone", u.getPhone());
+        return out;
+    }
 }

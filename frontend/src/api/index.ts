@@ -41,6 +41,12 @@ export const api = {
   async listSubjects(): Promise<{ id: number; name: string }[]> {
     return call(http.get('/api/auth/subjects'))
   },
+  /** 当前登录用户资料（按 token；「我的」页刷新真实姓名/手机号） */
+  async getMe(): Promise<User> {
+    const d = await call<any>(http.get('/api/auth/me'))
+    const roleMap: Record<number, User['role']> = { 1: 'student', 2: 'teacher', 3: 'admin' }
+    return { id: d.userId, role: roleMap[d.role] || 'guest', name: d.name, phone: d.phone }
+  },
 
   async listTeachers(): Promise<Teacher[]> {
     const list = await call<RawTeacher[]>(http.get('/api/teachers'))

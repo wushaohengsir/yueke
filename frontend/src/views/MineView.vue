@@ -11,6 +11,10 @@ const logout = useLogout()
 const credits = ref<Credit[]>([])
 
 onMounted(async () => {
+  // 按 token 拉取后端真实资料（姓名/手机号可能被管理员改名，避免显示旧缓存）
+  if (auth.isLoggedIn) {
+    try { auth.refreshUser(await api.getMe()) } catch { /* token 失效等，保持现状 */ }
+  }
   if (auth.isStudent) credits.value = await api.getCredits()
 })
 </script>
