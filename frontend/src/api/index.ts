@@ -151,6 +151,17 @@ export const api = {
     return attempt(http.post('/api/admin/plan/book', p))
   },
 
+  // ---- 管理端停课（老师休息日：屏蔽某日/某时段可约）----
+  async getAdminBlocks(teacherId: number): Promise<any[]> {
+    return call<any[]>(http.get('/api/admin/blocks', { params: { teacherId } }))
+  },
+  async adminAddBlock(p: { teacherId: number; date: string; start?: string; end?: string; reason?: string }) {
+    return attempt(http.post('/api/admin/blocks', p))
+  },
+  async adminRemoveBlock(id: number) {
+    return attempt(http.delete(`/api/admin/blocks/${id}`))
+  },
+
   // ---- 合同 ----
   async getContracts(): Promise<any[]> {
     return call<any[]>(http.get('/api/contracts'))

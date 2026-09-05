@@ -4,7 +4,7 @@ import { useAuthStore } from '../stores/auth'
 import { api } from '../api'
 import { useLogout } from '../composables/useLogout'
 import { AUDIT_STATUS, ROLE_TEXT as roleText } from '../utils/status'
-import { fmtDate, timeRange, dayLabelWeek } from '../utils/datetime'
+import { fmtDate, timeRange, dayLabelWeek, trimHM } from '../utils/datetime'
 
 const auth = useAuthStore()
 const logout = useLogout()
@@ -97,6 +97,41 @@ async function bookPlan() {
   })
   planMsg.value = r.ok ? `✓ 已为「${studentName()}」安排 ${fmtSlot(selSlot.value)} 的课` : '✗ ' + (r.msg || '排课失败')
   if (r.ok) await loadPlanSlots()
+}
+
+// ---- 停课：管理员屏蔽某老师某日/某时段可约（老师放假/请假时用）----
+const blockForm = ref({ teacherId: '', date: '', allDay: true, start: '', end: '', reason: '' })
+const blocks = ref<any[]>([])
+const blockMsg = ref('')
+function blockTeacherName() {
+  return (planTeachers.value.find((t: any) => String(t.id) === String(blockForm.value.teacherId)) || {}).name || ''
+}
+async function loadBlocks() {
+  blocks.value = blockForm.value.teacherId
+    ? await api.getAdminBlocks(Number(blockForm.value.teacherId))
+    : []
+}
+function blockLabel(b: any) {
+  return b.startTime ? `${trimHM(b.startTime)}-${trimHM(b.endTime)}` : '全天'
+}
+async function addBlock() {
+  if (!blockForm.value.teacherId || !blockForm.value.date) { alert('请选择老师与日期'); return }
+  const p: any = { teacherId: Number(blockForm.value.teacherId), date: blockForm.value.date, reason: blockForm.value.reason }
+  if (!blockForm.value.allDay) {
+    if (!blockForm.value.start || !blockForm.value.end) { alert('按时段停课请填写开始与结束时间'); return }
+    if (blockForm.value.start >= blockForm.value.end) { alert('结束时间须晚于开始时间'); return }
+    p.start = blockForm.value.start; p.end = blockForm.value.end
+  }
+  const r = await api.adminAddBlock(p)
+  blockMsg.value = r.ok ? '✓ 已停课' : '✗ ' + (r.msg || '停课失败')
+  if (r.ok) {
+    blockForm.value = { teacherId: blockForm.value.teacherId, date: blockForm.value.date, allDay: true, start: '', end: '', reason: '' }
+    await loadBlocks()
+  }
+}
+async function removeBlock(id: number) {
+  await api.adminRemoveBlock(id)
+  await loadBlocks()
 }
 </script>
 
@@ -199,11 +234,11 @@ async function bookPlan() {
         <b>选择学生 / 老师 / 目标日期</b>
         <select class="input mt" v-model="planForm.studentId" @change="clearPlanSlots">
           <option value="">学员</option>
-          <option v-for="s in students" :key="s.id" :value="s.id">{{ s.name }}（{{ s.phone }}）</option>
+          <option v-for="s in students" :key="s.id" :value="s.id">{{ s.name }}</option>
         </select>
         <select class="input" v-model="planForm.teacherId" @change="clearPlanSlots">
           <option value="">老师</option>
-          <option v-for="t in planTeachers" :key="t.id" :value="t.id">{{ t.name }}（{{ (t.subjects && t.subjects[0]) || '未设科目' }}）</option>
+          <option v-for="t in planTeachers" :key="t.id" :value="t.id">{{ t.name }}</option>
         </select>
         <input class="input" type="date" :min="todayMin" v-model="planForm.date" @change="clearPlanSlots" />
         <button class="btn mt" @click="loadPlanSlots">查看该日可约时段</button>
@@ -228,6 +263,35 @@ async function bookPlan() {
         <button class="btn" @click="bookPlan">为该学员排课</button>
       </div>
       <p class="muted mt" v-if="planMsg">{{ planMsg }}</p>
+
+      <!-- 停课：老师放假 / 临时停用某日（可整天或按时段）可约 -->
+      <div class="card mt">
+        <b>停课：老师放假 / 临时停用某日可约</b>
+        <p class="muted" style="margin:6px 0 10px">停课后学生当天约不到该老师对应时段，老师端当天也不显示可约；已约课时不受影响。</p>
+        <select class="input" v-model="blockForm.teacherId" @change="loadBlocks">
+          <option value="">老师</option>
+          <option v-for="t in planTeachers" :key="t.id" :value="t.id">{{ t.name }}</option>
+        </select>
+        <div class="row mt">
+          <input class="input" type="date" :min="todayMin" v-model="blockForm.date" style="margin:0" />
+          <label class="muted" style="white-space:nowrap;align-self:center"><input type="checkbox" v-model="blockForm.allDay" /> 全天</label>
+        </div>
+        <div class="row mt" v-if="!blockForm.allDay">
+          <input class="input" type="time" style="margin:0" v-model="blockForm.start" />
+          <input class="input" type="time" style="margin:0" v-model="blockForm.end" />
+        </div>
+        <input class="input" v-model="blockForm.reason" placeholder="原因（如：老师请假 / 放假）" />
+        <button class="btn mt" @click="addBlock">停课</button>
+        <p class="muted mt" v-if="blockMsg" style="margin-bottom:0">{{ blockMsg }}</p>
+      </div>
+
+      <div class="card mt" v-if="blocks.length">
+        <b>{{ blockTeacherName() }} 的停课记录</b>
+        <div v-for="b in blocks" :key="b.id" class="row mt">
+          <span>{{ dayLabelWeek(b.blockDate) }} · {{ blockLabel(b) }}<template v-if="b.reason"> · {{ b.reason }}</template></span>
+          <button class="btn ghost small" style="color:var(--coral)" @click="removeBlock(b.id)">恢复</button>
+        </div>
+      </div>
     </div>
 
     <button class="btn ghost mt" @click="logout">退出登录</button>

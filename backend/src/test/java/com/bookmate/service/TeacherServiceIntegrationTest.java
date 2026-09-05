@@ -2,6 +2,7 @@ package com.bookmate.service;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.bookmate.entity.Booking;
+import com.bookmate.entity.TimeslotBlock;
 import com.bookmate.entity.TimeslotTemplate;
 import com.bookmate.mapper.BookingMapper;
 import com.bookmate.mapper.TimeslotTemplateMapper;
@@ -38,6 +39,9 @@ class TeacherServiceIntegrationTest {
 
     @Autowired
     private BookingService bookingService;
+
+    @Autowired
+    private BlockService blockService;
 
     // 老师 id=1
     private static final long TEACHER_ID = 1L;
@@ -228,5 +232,49 @@ class TeacherServiceIntegrationTest {
         assertFalse(ids.contains(b.getId()));
         assertFalse(ids.contains(c.getId()));
         assertFalse(ids.contains(d.getId()));
+    }
+
+    // ---- D5：停课屏蔽（管理员停用老师某日/某时段可约）----
+    private void clearBlocks(long teacherId, LocalDate date) {
+        for (TimeslotBlock bl : blockService.blocksOn(teacherId, date)) {
+            blockService.removeBlock(bl.getId());
+        }
+    }
+
+    @Test
+    void addBlock_整天时段与参数校验() {
+        LocalDate mon = nextWeekday(1);
+        assertEquals(OpStatus.OK, blockService.addBlock(TEACHER_ID, mon, null, null, "放假"));
+        assertEquals(OpStatus.CONFLICT, blockService.addBlock(TEACHER_ID, mon, null, null, "重复"));
+        assertEquals(OpStatus.BAD_TIME, blockService.addBlock(TEACHER_ID, mon, LocalTime.of(20, 0), LocalTime.of(19, 0), "倒序"));
+        assertEquals(OpStatus.BAD_TIME, blockService.addBlock(TEACHER_ID, mon, LocalTime.of(20, 0), null, "只填起"));
+        assertEquals(OpStatus.NOT_FOUND, blockService.addBlock(999L, mon, null, null, "无此老师"));
+        assertEquals(OpStatus.OK, blockService.addBlock(TEACHER_ID, mon, LocalTime.of(17, 0), LocalTime.of(18, 30), "临时"));
+    }
+
+    @Test
+    void generateSlotsOn_停课日不生成时段_恢复后回归() {
+        teacherService.toggleTemplate(1L); // 启用模板1(周一18-19)
+        LocalDate mon = nextWeekday(1);
+        blockService.addBlock(TEACHER_ID, mon, null, null, "放假");          // 整天停课
+        assertEquals(0, bookingService.generateSlotsOn(TEACHER_ID, mon).size());
+        clearBlocks(TEACHER_ID, mon);
+        blockService.addBlock(TEACHER_ID, mon, LocalTime.of(17, 0), LocalTime.of(18, 30), "临时"); // 覆盖18-19
+        assertEquals(0, bookingService.generateSlotsOn(TEACHER_ID, mon).size());
+        clearBlocks(TEACHER_ID, mon);                                        // 恢复
+        assertEquals(1, bookingService.generateSlotsOn(TEACHER_ID, mon).size());
+    }
+
+    @Test
+    void isSlotBlocked_整天与时段重叠判定() {
+        LocalDate mon = nextWeekday(1);
+        blockService.addBlock(TEACHER_ID, mon, LocalTime.of(17, 0), LocalTime.of(18, 30), "临时");
+        assertTrue(blockService.isSlotBlocked(TEACHER_ID,
+                LocalDateTime.of(mon, LocalTime.of(18, 0)), LocalDateTime.of(mon, LocalTime.of(19, 0))));
+        assertFalse(blockService.isSlotBlocked(TEACHER_ID,
+                LocalDateTime.of(mon, LocalTime.of(20, 0)), LocalDateTime.of(mon, LocalTime.of(21, 0))));
+        blockService.addBlock(TEACHER_ID, mon.plusDays(1), null, null, "放假"); // 整天覆盖任意时段
+        assertTrue(blockService.isSlotBlocked(TEACHER_ID,
+                LocalDateTime.of(mon.plusDays(1), LocalTime.of(9, 0)), LocalDateTime.of(mon.plusDays(1), LocalTime.of(10, 0))));
     }
 }

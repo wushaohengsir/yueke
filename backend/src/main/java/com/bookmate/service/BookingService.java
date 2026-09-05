@@ -24,11 +24,14 @@ public class BookingService {
     private final TimeslotTemplateMapper templateMapper;
     private final SubjectService subjectService;
     private final CreditService creditService;
+    private final BlockService blockService;
 
     public BookingService(BookingMapper b, TeacherProfileMapper t, UserMapper u,
-                          TimeslotTemplateMapper tm, SubjectService ss, CreditService cs) {
+                          TimeslotTemplateMapper tm, SubjectService ss, CreditService cs,
+                          BlockService bs) {
         this.bookingMapper = b; this.teacherMapper = t; this.userMapper = u;
         this.templateMapper = tm; this.subjectService = ss; this.creditService = cs;
+        this.blockService = bs;
     }
 
     public List<TeacherView> listTeachers() {
@@ -74,12 +77,14 @@ public class BookingService {
                 .filter(s -> s.toLocalDate().equals(date)).collect(Collectors.toSet());
 
         int weekday = date.getDayOfWeek().getValue();
+        List<TimeslotBlock> blocks = blockService.blocksOn(teacherId, date); // 当日停课
         List<SlotView> slots = new ArrayList<>();
         for (TimeslotTemplate t : enabledTemplates(teacherId)) {
             if (t.getWeekday() != weekday) continue;
             LocalDateTime s = LocalDateTime.of(date, t.getStartTime());
             LocalDateTime e = LocalDateTime.of(date, t.getEndTime());
             if (excludePast && !s.isAfter(now)) continue; // 已开始/已过的时段不可再排
+            if (blockService.overlaps(blocks, t.getStartTime(), t.getEndTime())) continue; // 该时段已停课
             SlotView sv = new SlotView();
             sv.setId(teacherId + "-" + s);
             sv.setStartAt(s); sv.setEndAt(e);

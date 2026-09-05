@@ -23,11 +23,13 @@ public class TeacherService {
     private final UserMapper userMapper;
     private final SubjectService subjectService;
     private final CreditService creditService;
+    private final BlockService blockService;
 
     public TeacherService(BookingMapper b, LeaveRequestMapper l, TimeslotTemplateMapper tm,
-                          UserMapper u, SubjectService ss, CreditService cs) {
+                          UserMapper u, SubjectService ss, CreditService cs, BlockService bs) {
         this.bookingMapper = b; this.leaveMapper = l; this.templateMapper = tm;
         this.userMapper = u; this.subjectService = ss; this.creditService = cs;
+        this.blockService = bs;
     }
 
     // ---- 学员提交请假（待审批；已下课的课程不可请假） ----
@@ -90,6 +92,7 @@ public class TeacherService {
                 List<Booking> dayBookings = bookingsByDate.getOrDefault(date, List.of());
                 Map<LocalTime, Booking> byStart = new HashMap<>();
                 for (Booking b : dayBookings) byStart.put(b.getStartAt().toLocalTime(), b);
+                List<TimeslotBlock> blocks = blockService.blocksOn(teacherId, date); // 当日停课
 
                 for (TimeslotTemplate t : templates) {
                     if (t.getWeekday() != weekday) continue;
@@ -99,6 +102,7 @@ public class TeacherService {
                     if (b != null) {
                         slots.add(slotOf(b, subjById));
                     } else {
+                        if (blockService.overlaps(blocks, st, et)) continue; // 该时段当日停课，不显示可约
                         Map<String, Object> s = new LinkedHashMap<>();
                         s.put("startTime", st.format(DateTimeFormatter.ofPattern("HH:mm")));
                         s.put("endTime", et.format(DateTimeFormatter.ofPattern("HH:mm")));
