@@ -51,7 +51,6 @@ function go(to: string) {
       </div>
     </div>
 
-    <p class="muted mt">v0.5 · 分课程课时版</p>
     <Tabbar />
   </div>
 </template>
