@@ -74,6 +74,17 @@ public class AdminController {
         return ok ? Result.ok(true) : Result.fail(400, "该手机号已存在，无法重复创建");
     }
 
+    // 用户管理：重置学员/老师密码（忘记密码场景；管理员账号不由此口重置）
+    @PostMapping("/users/{id}/reset-password")
+    public Result<?> resetPassword(@RequestHeader("Authorization") String authHeader,
+                                   @PathVariable long id, @RequestBody Map<String, Object> body) {
+        if (!auth.hasRole(authHeader, AuthHelper.ROLE_ADMIN)) return Result.fail(403, "无权访问");
+        String password = String.valueOf(body.getOrDefault("password", ""));
+        if (password.length() < 6) return Result.fail(400, "新密码至少 6 位");
+        boolean ok = adminService.resetPassword(id, password);
+        return ok ? Result.ok(true) : Result.fail(400, "重置失败（仅学员/老师账号可重置）");
+    }
+
     // 用户管理：禁用/启用
     @PostMapping("/users/{id}/toggle")
     public Result<?> toggleUser(@PathVariable long id, @RequestBody Map<String, Object> body) {

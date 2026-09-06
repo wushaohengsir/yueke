@@ -70,6 +70,19 @@ public class AdminService {
     }
 
     /**
+     * 管理员重置学员/老师密码（忘记密码场景）：仅允许学员(1)/老师(2)，
+     * 管理员账号不由此口重置（防管理员之间互相越权；首个/其他管理员走引导或另行处理）。
+     */
+    @Transactional
+    public boolean resetPassword(long userId, String newPassword) {
+        User u = userMapper.selectById(userId);
+        if (u == null || u.getRole() == null || (u.getRole() != 1 && u.getRole() != 2)) return false;
+        u.setPasswordHash(encoder.encode(newPassword));
+        userMapper.updateById(u);
+        return true;
+    }
+
+    /**
      * 管理员创建账号：仅限学员(1)/管理员(3)（老师走公开注册 + 审核闭环）。
      * 调用前已校验角色/字段完整性，返回 false 表示手机号已存在（uk_phone 冲突）。
      */

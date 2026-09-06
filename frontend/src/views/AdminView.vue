@@ -42,6 +42,16 @@ async function toggleUser(id: number, enable: boolean) {
   await api.toggleUser(id, enable)
   await loadUsers()
 }
+// 重置学员/老师密码（忘记密码：由管理员代为设置新密码）
+async function resetPassword(u: any) {
+  const p = window.prompt(`为「${u.name}」设置新密码（至少 6 位）：`, '')
+  if (p === null) return
+  if (p.length < 6) { alert('新密码至少 6 位'); return }
+  if (!confirm(`确认将「${u.name}」的密码重置为新密码？重置后需用新密码登录。`)) return
+  const r = await api.adminResetPassword(u.id, p)
+  alert(r.ok ? '✓ 已重置' : '✗ 重置失败：' + (r.msg || ''))
+  if (r.ok) await loadUsers()
+}
 // 新建账号（管理员建学员/管理员；老师须公开注册+审核）
 const newUser = ref<{ role: 'student' | 'admin'; name: string; phone: string; password: string }>({
   role: 'student', name: '', phone: '', password: '',
@@ -247,9 +257,12 @@ async function removeBlock(id: number) {
           <span class="st" :class="u.status===1?'s2':'s3'">{{ u.status===1?'正常':'已禁用' }}</span>
         </div>
         <p class="muted" style="margin:6px 0">{{ u.phone }} · {{ roleText[u.role] }}</p>
-        <button class="btn ghost small" v-if="u.role!==3" @click="toggleUser(u.id, u.status!==1)">
-          {{ u.status===1?'禁用':'启用' }}
-        </button>
+        <div class="row mt" style="justify-content:flex-start;gap:8px" v-if="u.role!==3">
+          <button class="btn ghost small" style="margin:0" @click="toggleUser(u.id, u.status!==1)">
+            {{ u.status===1?'禁用':'启用' }}
+          </button>
+          <button class="btn ghost small" style="margin:0" @click="resetPassword(u)">重置密码</button>
+        </div>
       </div>
       <p class="muted" v-if="!users.length">暂无用户</p>
     </div>

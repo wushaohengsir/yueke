@@ -21,6 +21,7 @@ import static org.junit.jupiter.api.Assertions.*;
 class AdminServiceIntegrationTest {
 
     @Autowired private AdminService adminService;
+    @Autowired private AuthService authService;
     @Autowired private UserMapper userMapper;
     @Autowired private TeacherProfileMapper teacherMapper;
     @Autowired private StudentProfileMapper studentProfileMapper;
@@ -56,6 +57,27 @@ class AdminServiceIntegrationTest {
     void createUser_重复手机号返回false() {
         assertTrue(adminService.createUser(1, "新学员", "13700000003", "stu1234"));
         assertFalse(adminService.createUser(3, "管理员B", "13700000003", "admin123"));
+    }
+
+    // ---- 管理员重置学员/老师密码（忘记密码场景）----
+
+    @Test
+    void resetPassword_学员重置后可登录_旧密码失效() {
+        assertTrue(adminService.createUser(1, "忘记密码学员", "13711112222", "123456"));
+        User u = byPhone("13711112222");
+        assertNotNull(u);
+        assertTrue(adminService.resetPassword(u.getId(), "abcdef")); // 重置新密码
+        assertNotNull(authService.login("13711112222", "abcdef", 1).get("token")); // 新密码可登
+        assertThrows(IllegalArgumentException.class,
+                () -> authService.login("13711112222", "123456", 1)); // 旧密码失效
+    }
+
+    @Test
+    void resetPassword_管理员账号拒绝重置() {
+        // test-data 无管理员；造一个 role=3 用户验证不可被重置（防管理员互越权）
+        assertTrue(adminService.createUser(3, "管理员B", "13711113333", "admin123"));
+        User admin = byPhone("13711113333");
+        assertFalse(adminService.resetPassword(admin.getId(), "hacked123"));
     }
 
     // ---- 审核可改回（已驳回可再通过、已通过可再驳回）----

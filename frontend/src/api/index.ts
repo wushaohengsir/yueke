@@ -162,6 +162,10 @@ export const api = {
   async toggleUser(id: number, enable: boolean) {
     return attempt(http.post(`/api/admin/users/${id}/toggle`, { enable }))
   },
+  /** 管理员重置学员/老师密码（忘记密码场景） */
+  async adminResetPassword(id: number, password: string) {
+    return attempt(http.post(`/api/admin/users/${id}/reset-password`, { password }))
+  },
   /** 管理员新建账号（学员/管理员；老师须公开注册+审核） */
   async adminCreateUser(p: { role: 'student' | 'admin'; name: string; phone: string; password: string }) {
     return attempt(http.post('/api/admin/users', {
