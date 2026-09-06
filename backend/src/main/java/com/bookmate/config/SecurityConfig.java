@@ -42,8 +42,13 @@ public class SecurityConfig {
             .cors(c -> c.configurationSource(corsSource()))
             .sessionManagement(s -> s.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
             .authorizeHttpRequests(a -> a
-                .requestMatchers("/api/auth/**").permitAll()
+                // 仅公开：登录/注册/科目下拉/老师名录（游客浏览师资）
+                .requestMatchers("/api/auth/login", "/api/auth/register", "/api/auth/subjects").permitAll()
                 .requestMatchers(HttpMethod.GET, "/api/teachers").permitAll()
+                // 角色隔离：按 URL 前缀强制角色（越权/裸奔的根因在此收口）
+                .requestMatchers("/api/admin/**").hasRole("ADMIN")
+                .requestMatchers("/api/teacher/**").hasRole("TEACHER")
+                .requestMatchers("/api/bookings", "/api/credits", "/api/leave", "/api/contracts", "/api/contracts/**").hasRole("STUDENT")
                 .anyRequest().authenticated())
             .addFilterBefore(filter, UsernamePasswordAuthenticationFilter.class);
         return http.build();
@@ -71,8 +76,20 @@ public class SecurityConfig {
             if (auth != null && auth.startsWith("Bearer ")) {
                 try {
                     Long uid = jwtUtil.parseUserId(auth.substring(7));
+                    // token 里的角色号(1学员/2老师/3管理员)映射为 Spring 角色权限，
+                    // 供 SecurityFilterChain 按 /api/** 前缀做集中式角色拦截。
+                    Integer role = jwtUtil.parseRole(auth.substring(7));
+                    String authority = "ROLE_USER";
+                    if (role != null) {
+                        authority = switch (role) {
+                            case 1 -> "ROLE_STUDENT";
+                            case 2 -> "ROLE_TEACHER";
+                            case 3 -> "ROLE_ADMIN";
+                            default -> "ROLE_USER";
+                        };
+                    }
                     var token = new UsernamePasswordAuthenticationToken(
-                            uid, null, List.of(new SimpleGrantedAuthority("ROLE_USER")));
+                            uid, null, List.of(new SimpleGrantedAuthority(authority)));
                     SecurityContextHolder.getContext().setAuthentication(token);
                 } catch (Exception ignored) { }
             }
