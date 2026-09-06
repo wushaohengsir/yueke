@@ -136,6 +136,18 @@ body {
 }
 .banner p { margin: 0; opacity: 0.92; font-size: 13px; color: #f3dfb8; letter-spacing: 1px; }
 
+/* 「项目介绍」入口 chip（答辩要求首页提供 /about.html 链接） */
+.about-chip-wrap { text-align: center; margin: 4px 0 0; }
+.about-chip {
+  display: inline-block; margin-top: 10px; font-size: 13px; font-weight: 700;
+  color: #fff8ec; text-decoration: none;
+  background: rgba(200, 64, 42, 0.78); border: 1px solid rgba(255, 248, 236, 0.55);
+  border-radius: 999px; padding: 5px 16px; letter-spacing: 1px;
+}
+.about-chip:hover { background: var(--maple-deep); color: #fff; }
+.banner .about-chip { margin-top: 10px; }
+.about-chip-wrap .about-chip { margin-top: 0; }
+
 /* 登录页主视觉（万叶剪影图） */
 .hero-art {
   position: relative; overflow: hidden;

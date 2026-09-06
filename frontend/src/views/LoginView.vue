@@ -75,5 +75,7 @@ async function submit() {
         <p class="muted" style="margin:12px 0 0;text-align:center">还没有账号？<a href="#" @click.prevent="router.push('/register')">注册{{ role === 'student' ? '学员' : '老师' }}账号</a></p>
       </template>
     </div>
+
+    <p class="about-chip-wrap"><router-link to="/about.html" class="about-chip">项目介绍</router-link></p>
   </div>
 </template>

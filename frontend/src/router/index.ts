@@ -6,6 +6,8 @@ const router = createRouter({
   routes: [
     { path: '/login', name: 'login', component: () => import('../views/LoginView.vue') },
     { path: '/register', name: 'register', component: () => import('../views/RegisterView.vue') },
+    // 答辩要求：首页提供「项目介绍」，URL 统一 /about.html（游客与登录角色均可访问）
+    { path: '/about.html', name: 'about', component: () => import('../views/AboutView.vue'), meta: { guest: true, anyone: true } },
     { path: '/', name: 'home', component: () => import('../views/HomeView.vue'), meta: { auth: true } },
     { path: '/book', name: 'book', component: () => import('../views/BookingListView.vue'), meta: { guest: true } },
     { path: '/book/:id', name: 'book-detail', component: () => import('../views/BookingDetailView.vue'), meta: { auth: true } },
@@ -28,8 +30,9 @@ router.beforeEach((to) => {
   if (role === 'guest' && !to.meta.guest && to.name !== 'login') return { name: 'login' }
   if (to.meta.teacher && role !== 'teacher') return { name: 'home' }
   if (to.meta.admin && role !== 'admin') return { name: 'home' }
-  if (role === 'teacher' && !to.meta.teacher && to.name !== 'login') return { name: 'teacher' }
-  if (role === 'admin' && !to.meta.admin && to.name !== 'login') return { name: 'admin' }
+  // anyone 页面（如 /about.html）所有角色均可访问
+  if (role === 'teacher' && !to.meta.teacher && !to.meta.anyone && to.name !== 'login') return { name: 'teacher' }
+  if (role === 'admin' && !to.meta.admin && !to.meta.anyone && to.name !== 'login') return { name: 'admin' }
 })
 
 export default router

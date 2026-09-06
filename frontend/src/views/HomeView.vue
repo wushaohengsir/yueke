@@ -34,6 +34,7 @@ function go(to: string) {
     <div class="banner">
       <h1>通用师生约课平台</h1>
       <p>红叶有信 · 好课有约</p>
+      <router-link to="/about.html" class="about-chip">项目介绍</router-link>
     </div>
 
     <!-- 分课程课时（不通用） -->
