@@ -1,5 +1,7 @@
 package com.bookmate.service;
 
+import com.bookmate.entity.User;
+import com.bookmate.mapper.UserMapper;
 import com.bookmate.util.JwtUtil;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -25,6 +27,7 @@ class SecurityIntegrationTest {
 
     @Autowired private MockMvc mockMvc;
     @Autowired private JwtUtil jwtUtil;
+    @Autowired private UserMapper userMapper;
 
     private String bearer(long userId, int role) {
         return "Bearer " + jwtUtil.generate(userId, String.valueOf(role));
@@ -48,9 +51,22 @@ class SecurityIntegrationTest {
 
     @Test
     void 管理员token访问管理端用户列表应200() throws Exception {
+        // token 角色为管理员，且 userId 指向真实启用中的用户(seeded id=1) → 通过 JWT 即时校验
         mockMvc.perform(get("/api/admin/users")
-                        .header("Authorization", bearer(999L, 3)))
+                        .header("Authorization", bearer(1L, 3)))
                 .andExpect(status().isOk());
+    }
+
+    // ---- JWT 即时吊销：被禁用账号即使持有 token 也立即失效力 ----
+
+    @Test
+    void 被禁用账号token即时失效应403() throws Exception {
+        User u = userMapper.selectById(2L);
+        u.setStatus(0);
+        userMapper.updateById(u);
+        mockMvc.perform(get("/api/credits")
+                        .header("Authorization", bearer(2L, 1)))
+                .andExpect(status().isForbidden());
     }
 
     // ---- 角色错位：学员 token 不得进老师端 ----

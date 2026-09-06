@@ -1,5 +1,7 @@
 package com.bookmate.config;
 
+import com.bookmate.entity.User;
+import com.bookmate.mapper.UserMapper;
 import com.bookmate.util.JwtUtil;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
@@ -34,7 +36,9 @@ public class SecurityConfig {
     public PasswordEncoder passwordEncoder() { return new BCryptPasswordEncoder(); }
 
     @Bean
-    public JwtAuthFilter jwtAuthFilter(JwtUtil jwtUtil) { return new JwtAuthFilter(jwtUtil); }
+    public JwtAuthFilter jwtAuthFilter(JwtUtil jwtUtil, UserMapper userMapper) {
+        return new JwtAuthFilter(jwtUtil, userMapper);
+    }
 
     @Bean
     public SecurityFilterChain filterChain(HttpSecurity http, JwtAuthFilter filter) throws Exception {
@@ -57,9 +61,14 @@ public class SecurityConfig {
     @Bean
     public CorsConfigurationSource corsSource() {
         CorsConfiguration cfg = new CorsConfiguration();
-        cfg.setAllowedOriginPatterns(List.of("*"));
-        cfg.setAllowedMethods(List.of("*"));
-        cfg.setAllowedHeaders(List.of("*"));
+        // 收紧跨域：仅本站(nginx 同源)与本地开发源；其余跨站请求一律不带 CORS 放行头。
+        // 同源访问（浏览器同 origin 调 /api）不依赖 CORS，故换 IP/域名访问不受影响。
+        cfg.setAllowedOriginPatterns(List.of(
+                "http://146.56.247.172",
+                "http://localhost:5173",
+                "http://127.0.0.1:5173"));
+        cfg.setAllowedMethods(List.of("GET", "POST", "PUT", "DELETE", "OPTIONS"));
+        cfg.setAllowedHeaders(List.of("Authorization", "Content-Type"));
         UrlBasedCorsConfigurationSource src = new UrlBasedCorsConfigurationSource();
         src.registerCorsConfiguration("/**", cfg);
         return src;
@@ -67,7 +76,8 @@ public class SecurityConfig {
 
     static class JwtAuthFilter extends OncePerRequestFilter {
         private final JwtUtil jwtUtil;
-        JwtAuthFilter(JwtUtil j) { this.jwtUtil = j; }
+        private final UserMapper userMapper;
+        JwtAuthFilter(JwtUtil j, UserMapper userMapper) { this.jwtUtil = j; this.userMapper = userMapper; }
 
         @Override
         protected void doFilterInternal(HttpServletRequest req, HttpServletResponse res, FilterChain chain)
@@ -76,6 +86,12 @@ public class SecurityConfig {
             if (auth != null && auth.startsWith("Bearer ")) {
                 try {
                     Long uid = jwtUtil.parseUserId(auth.substring(7));
+                    // 即时吊销：每个请求核对用户仍存在且未被禁用(status=1)，被停用/删除立即失效
+                    User u = userMapper.selectById(uid);
+                    if (u == null || u.getStatus() == null || u.getStatus().intValue() != 1) {
+                        chain.doFilter(req, res);
+                        return;
+                    }
                     // token 里的角色号(1学员/2老师/3管理员)映射为 Spring 角色权限，
                     // 供 SecurityFilterChain 按 /api/** 前缀做集中式角色拦截。
                     Integer role = jwtUtil.parseRole(auth.substring(7));

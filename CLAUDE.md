@@ -112,7 +112,8 @@ yueke/
    - `scp backend/target/backend-0.1.0.jar` → `~/bookmate/backend/backend-0.1.0.jar`
    - 重置并上传 `frontend/dist/*` → `~/bookmate/frontend/dist/`
    - `sudo docker compose build backend frontend && sudo docker compose up -d --remove-orphans backend frontend`
-4. **线上冒烟**：公网 `GET /api/auth/subjects` 返回 `code=0`；`POST /api/auth/login`（未注册手机号）应 `code=400`「尚未注册」——验证新代码生效且**勿在线插入脏数据**
+4. **线上冒烟**：公网已强制 HTTPS（80→301 到 443，自签证书含公网 IP SAN，密钥仅存服务器不提交仓库）。用 `curl -sk https://146.56.247.172/api/auth/subjects` 返回 `code=0`；`POST /api/auth/login`（未注册手机号）应 `code=400`「尚未注册」——验证新代码生效且**勿在线插入脏数据**
+5. 后端仅 compose 内网暴露（不再发布 8080），公网只留 80/443(nginx)。管理员默认口令已在生产轮换（见日志/私聊，勿写入仓库）
 
 > 数据库结构/演示数据变更时才需要：本地 `mysqldump` 出 `bookmate-dump.sql` 上传，`docker exec -i bookmate-db mysql ... < bookmate-dump.sql`（业务数据在 data 卷持久化，一般不动）。
 

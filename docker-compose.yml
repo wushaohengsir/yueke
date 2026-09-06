@@ -32,15 +32,26 @@ services:
       db:
         condition: service_healthy
     restart: unless-stopped
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
 
   frontend:
     build: ./frontend
     container_name: bookmate-frontend
     ports:
       - "80:80"
+      - "443:443"
     depends_on:
       - backend
     restart: unless-stopped
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
 
 volumes:
   dbdata:

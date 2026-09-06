@@ -1,6 +1,7 @@
 package com.bookmate.controller;
 
 import com.bookmate.common.AuthHelper;
+import com.bookmate.common.LoginGuard;
 import com.bookmate.common.Result;
 import com.bookmate.service.AuthService;
 import com.bookmate.service.SubjectService;
@@ -14,11 +15,13 @@ public class AuthController {
     private final AuthService authService;
     private final SubjectService subjectService;
     private final AuthHelper auth;
+    private final LoginGuard guard;
 
-    public AuthController(AuthService a, SubjectService s, AuthHelper auth) {
+    public AuthController(AuthService a, SubjectService s, AuthHelper auth, LoginGuard guard) {
         this.authService = a;
         this.subjectService = s;
         this.auth = auth;
+        this.guard = guard;
     }
 
     // 当前登录用户资料（token 换真实姓名/手机号）
@@ -27,7 +30,7 @@ public class AuthController {
         return Result.ok(authService.me(auth.userId(authHeader)));
     }
 
-    // 登录（纯登录，不再"查无此号自动建档"；待审/驳回老师在此被拒）
+    // 登录（纯登录；带防爆破：连续失败锁定，不开放注册、不自动建档）
     @PostMapping("/login")
     public Result<?> login(@RequestBody Map<String, Object> body) {
         String phone = String.valueOf(body.get("phone"));
@@ -35,9 +38,17 @@ public class AuthController {
         if (phone.isBlank()) return Result.fail(400, "请输入手机号");
         if (password.isBlank()) return Result.fail(400, "请输入密码");
         int role = body.get("role") != null ? Integer.parseInt(String.valueOf(body.get("role"))) : 1;
+        int locked = guard.lockRemainingMinutes(phone);
+        if (locked > 0) return Result.fail(429, "登录尝试过多，请 " + locked + " 分钟后再试");
         try {
-            return Result.ok(authService.login(phone, password, role));
+            var out = authService.login(phone, password, role);
+            guard.reset(phone);
+            return Result.ok(out);
         } catch (IllegalArgumentException e) {
+            guard.recordFailure(phone);
+            if (guard.lockRemainingMinutes(phone) > 0) {
+                return Result.fail(429, "登录尝试过多，请 10 分钟后再试");
+            }
             return Result.fail(400, e.getMessage());
         }
     }

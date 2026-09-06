@@ -19,7 +19,7 @@ function back() {
         <b style="font-size:18px">通用师生约课平台 · BookMate</b>
         <span class="tag">第八组</span>
       </div>
-      <p class="muted" style="margin:10px 0 0">在线访问：<b>http://146.56.247.172</b></p>
+      <p class="muted" style="margin:10px 0 0">在线访问：<b>https://146.56.247.172</b>（自签 HTTPS，首次访问浏览器会提示"继续访问"）</p>
       <p class="muted" style="margin:6px 0 0">面向培训机构 / 独立教师与学员的轻量级在线约课系统。</p>
     </div>
 
